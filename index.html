@@ -1,0 +1,68 @@
+
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DebateHub</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#137fec',
+                        secondary: '#ef4444',
+                        background: {
+                            light: '#f6f7f8',
+                            dark: '#111418'
+                        },
+                        surface: {
+                            dark: '#1c2127',
+                            darker: '#101922'
+                        },
+                        border: {
+                            dark: '#283039'
+                        },
+                        cat_politics: '#f43f5e',
+                        cat_economy: '#f59e0b',
+                        cat_tech: '#0ea5e9',
+                        cat_ethics: '#a855f7',
+                        cat_env: '#10b981',
+                        cat_edu: '#6366f1'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans KR', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        body { @apply bg-background-light dark:bg-background-dark text-slate-900 dark:text-white transition-colors duration-200; }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root"></div>
+    <!-- 앱을 실행하기 위한 모듈 스크립트 추가 -->
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>

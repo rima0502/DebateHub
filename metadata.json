@@ -1,0 +1,8 @@
+{
+  "name": "DebateHub",
+  "description": "A sophisticated real-time structured debate platform featuring AI-assisted moderation, verified anonymity, and structured deliberation tools.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
