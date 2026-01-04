@@ -400,6 +400,39 @@ export function subscribeToParticipants(
 }
 
 /**
+ * 참여자 활동 상태 업데이트 (heartbeat)
+ */
+export async function updateParticipantActivity(debateId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      return { success: false, error: '로그인이 필요합니다.' };
+    }
+
+    const q = query(
+      collection(db, PARTICIPANTS_COLLECTION),
+      where('debateId', '==', debateId),
+      where('userId', '==', user.uid)
+    );
+    const participantSnapshot = await getDocs(q);
+
+    if (participantSnapshot.empty) {
+      return { success: false, error: '참여 중이지 않은 토론방입니다.' };
+    }
+
+    // 마지막 활동 시간 업데이트
+    await updateDoc(participantSnapshot.docs[0].ref, {
+      lastActiveAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('활동 상태 업데이트 오류:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * 토론방 나가기
  */
 export async function leaveDebate(debateId: string): Promise<{ success: boolean; error?: string }> {

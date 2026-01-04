@@ -1,39 +1,57 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Category } from '../types';
+import { useAuth } from '../src/hooks/useAuth';
+import { createDebate } from '../src/services/debateService';
+import type { DebateCategory } from '../src/types/debate';
+
+const CATEGORIES: DebateCategory[] = ['정치/사회', '경제', '기술', '윤리', '환경', '교육'];
 
 export default function CreateDebate() {
   const navigate = useNavigate();
-  const [category, setCategory] = useState<Category>(Category.POLITICS);
+  const { user } = useAuth();
+  const [category, setCategory] = useState<DebateCategory>('정치/사회');
   const [title, setTitle] = useState('');
   const [openingStatement, setOpeningStatement] = useState('');
   const [image, setImage] = useState<string | null>(null);
+  const [imagePosition, setImagePosition] = useState(50); // 0-100 percentage
+  const [isDragging, setIsDragging] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      navigate('/login');
+      return;
+    }
+
     if (!title.trim() || !openingStatement.trim()) {
       alert('논제와 발제문을 모두 입력해주세요.');
       return;
     }
 
-    const newDebate = {
-      id: `user-${Date.now()}`,
-      title: title.trim(),
-      category: category,
-      desc: openingStatement.trim(),
-      participants: '1',
-      messages: '0',
-      time: '방금 전',
-      image: image || `https://picsum.photos/seed/${Date.now()}/600/400`,
-      timestamp: Date.now() / 1000 / 3600 // 소팅용 가상 타임스탬프
-    };
+    setLoading(true);
 
-    // localStorage에 저장
-    const existingDebates = JSON.parse(localStorage.getItem('user_debates') || '[]');
-    localStorage.setItem('user_debates', JSON.stringify([newDebate, ...existingDebates]));
+    try {
+      const result = await createDebate({
+        title: title.trim(),
+        description: openingStatement.trim(),
+        category: category,
+        imageUrl: image || `https://picsum.photos/seed/${Date.now()}/600/400`
+      });
 
-    // 개설된 방으로 이동
-    navigate(`/room/${newDebate.id}`);
+      if (result.success && result.debateId) {
+        // 개설된 방으로 이동
+        navigate(`/room/${result.debateId}`);
+      } else {
+        alert(result.error || '토론방 생성에 실패했습니다.');
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('토론방 생성 오류:', error);
+      alert('토론방 생성 중 오류가 발생했습니다.');
+      setLoading(false);
+    }
   };
 
   return (
@@ -54,7 +72,7 @@ export default function CreateDebate() {
             <div className="flex flex-col gap-4">
               <label className="text-lg font-bold text-white">카테고리 선택</label>
               <div className="flex flex-wrap gap-3">
-                {Object.values(Category).map((cat) => (
+                {CATEGORIES.map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setCategory(cat)}
@@ -64,7 +82,7 @@ export default function CreateDebate() {
                       }`}
                   >
                     <span className="material-symbols-outlined text-[20px]">
-                      {cat === Category.POLITICS ? 'gavel' : cat === Category.SCIENCE ? 'science' : cat === Category.HUMANITIES ? 'psychology' : cat === Category.ECONOMY ? 'trending_up' : 'chat_bubble'}
+                      {cat === '정치/사회' ? 'gavel' : cat === '경제' ? 'trending_up' : cat === '기술' ? 'memory' : cat === '윤리' ? 'balance' : cat === '환경' ? 'public' : 'school'}
                     </span>
                     {cat}
                   </button>
@@ -104,23 +122,100 @@ export default function CreateDebate() {
               </label>
             </div>
 
-            {/* Image Upload (Simulation) */}
+            {/* Image URL Input */}
             <div className="flex flex-col gap-4">
               <label className="flex flex-col gap-2">
-                <span className="text-lg font-bold text-white">대표 이미지 (선택)</span>
-                <div
-                  onClick={() => setImage(`https://picsum.photos/seed/${Math.random()}/600/400`)}
-                  className={`mt-2 flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all py-10 ${image ? 'border-primary bg-primary/5' : 'border-slate-800 bg-[#0b0f14] hover:border-slate-600'
-                    }`}
-                >
-                  <span className={`material-symbols-outlined text-5xl mb-3 ${image ? 'text-primary' : 'text-slate-700'}`}>
-                    {image ? 'check_circle' : 'add_photo_alternate'}
-                  </span>
-                  <p className="text-sm text-slate-500">
-                    {image ? <span className="font-bold text-primary">이미지가 선택되었습니다</span> : <span>이미지를 선택하거나 드래그하세요</span>}
-                  </p>
-                  {image && <p className="text-xs text-slate-600 mt-2">클릭하여 다른 이미지로 변경</p>}
-                </div>
+                <span className="text-lg font-bold text-white">대표 이미지 URL (선택)</span>
+                <span className="text-slate-500 text-sm">토론방을 대표할 이미지 URL을 입력하세요. 비워두면 자동으로 생성됩니다.</span>
+                <input
+                  type="text"
+                  value={image || ''}
+                  onChange={(e) => setImage(e.target.value)}
+                  className="w-full h-14 p-4 mt-2 rounded-xl bg-[#0b0f14] border border-slate-800 text-white placeholder:text-slate-700 focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all"
+                  placeholder="https://example.com/image.jpg"
+                />
+                {image && (
+                  <div className="mt-4 flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-white">이미지 위치 조정</span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setImagePosition(0)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                            imagePosition === 0
+                              ? 'bg-primary text-white'
+                              : 'bg-[#0b0f14] text-slate-500 border border-slate-800 hover:text-slate-300'
+                          }`}
+                        >
+                          상단
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setImagePosition(50)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                            imagePosition === 50
+                              ? 'bg-primary text-white'
+                              : 'bg-[#0b0f14] text-slate-500 border border-slate-800 hover:text-slate-300'
+                          }`}
+                        >
+                          중앙
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setImagePosition(100)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                            imagePosition === 100
+                              ? 'bg-primary text-white'
+                              : 'bg-[#0b0f14] text-slate-500 border border-slate-800 hover:text-slate-300'
+                          }`}
+                        >
+                          하단
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      className="rounded-xl overflow-hidden border border-slate-800 h-48 relative bg-slate-900 cursor-move select-none"
+                      onMouseDown={(e) => {
+                        setIsDragging(true);
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const y = e.clientY - rect.top;
+                        const percentage = (y / rect.height) * 100;
+                        setImagePosition(Math.max(0, Math.min(100, percentage)));
+                      }}
+                      onMouseMove={(e) => {
+                        if (isDragging) {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const y = e.clientY - rect.top;
+                          const percentage = (y / rect.height) * 100;
+                          setImagePosition(Math.max(0, Math.min(100, percentage)));
+                        }
+                      }}
+                      onMouseUp={() => setIsDragging(false)}
+                      onMouseLeave={() => setIsDragging(false)}
+                    >
+                      <img
+                        src={image}
+                        alt="미리보기"
+                        className="w-full h-full object-cover pointer-events-none"
+                        style={{ objectPosition: `50% ${imagePosition}%` }}
+                        onError={(e) => {
+                          e.currentTarget.src = 'https://picsum.photos/seed/default/600/400';
+                        }}
+                      />
+                      <div className="absolute inset-0 border-2 border-dashed border-primary/30 pointer-events-none" />
+                      <div
+                        className="absolute left-0 right-0 h-0.5 bg-primary shadow-lg pointer-events-none"
+                        style={{ top: `${imagePosition}%` }}
+                      >
+                        <div className="absolute left-1/2 -translate-x-1/2 -top-1.5 w-3 h-3 bg-primary rounded-full shadow-lg" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      마우스로 드래그하여 이미지 위치를 조정하세요. 고정된 크기(600x400)로 표시됩니다.
+                    </p>
+                  </div>
+                )}
               </label>
             </div>
 
@@ -128,16 +223,27 @@ export default function CreateDebate() {
             <div className="flex flex-col-reverse md:flex-row justify-end gap-4 mt-4">
               <button
                 onClick={() => navigate(-1)}
-                className="h-14 w-full md:w-32 rounded-xl border border-slate-800 font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all"
+                disabled={loading}
+                className="h-14 w-full md:w-32 rounded-xl border border-slate-800 font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 취소
               </button>
               <button
                 onClick={handleSubmit}
-                className="h-14 w-full md:w-56 rounded-xl bg-primary px-6 font-black text-white shadow-lg shadow-primary/20 hover:bg-blue-600 transition-all flex items-center justify-center gap-2"
+                disabled={loading}
+                className="h-14 w-full md:w-56 rounded-xl bg-primary px-6 font-black text-white shadow-lg shadow-primary/20 hover:bg-blue-600 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                <span>토론방 개설하기</span>
-                <span className="material-symbols-outlined">rocket_launch</span>
+                {loading ? (
+                  <>
+                    <div className="size-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>개설 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>토론방 개설하기</span>
+                    <span className="material-symbols-outlined">rocket_launch</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

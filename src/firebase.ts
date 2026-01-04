@@ -15,7 +15,7 @@ const firebaseConfig = {
 // Firebase 초기화
 const app = initializeApp(firebaseConfig);
 
-// Firebase 서비스 (Storage는 나중에 필요할 때 추가)
+// Firebase 서비스
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 

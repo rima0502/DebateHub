@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDebateRoom } from '../src/hooks/useDebateRoom';
 import { useAuth } from '../src/hooks/useAuth';
+import { updateParticipantActivity } from '../src/services/debateService';
 import { Timestamp } from 'firebase/firestore';
 import type { DebateSide } from '../src/types/debate';
 
@@ -34,14 +35,27 @@ const formatTimestamp = (timestamp: Timestamp | Date | null | undefined) => {
   return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 };
 
+// 사용자가 현재 활동 중인지 확인 (최근 1분 이내 활동)
+const isUserActive = (lastActiveAt: Timestamp | Date | null | undefined): boolean => {
+  if (!lastActiveAt) return false;
+
+  const lastActive = lastActiveAt instanceof Timestamp ? lastActiveAt.toDate() : lastActiveAt;
+  const now = new Date();
+  const diffMs = now.getTime() - lastActive.getTime();
+  const diffSecs = diffMs / 1000;
+
+  // 60초(1분) 이내에 활동한 경우 활동 중으로 표시
+  return diffSecs <= 60;
+};
+
 export default function DebateRoom() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { debate, messages, participants, loading, sendMessage, joinDebate } = useDebateRoom(id || '');
+  const { debate, messages, participants, loading, sendMessage, joinDebate, toggleMessageLike } = useDebateRoom(id || '');
 
   const [input, setInput] = useState('');
-  const [userSide, setUserSide] = useState<DebateSide>('NEUTRAL');
+  const [userSide, setUserSide] = useState<DebateSide | null>(null);
   const [replyTarget, setReplyTarget] = useState<string | null>(null);
   const [likedMessages, setLikedMessages] = useState<Set<string>>(new Set());
   const [activeParticipantId, setActiveParticipantId] = useState<string | null>(null);
@@ -52,7 +66,10 @@ export default function DebateRoom() {
     if (user && id && participants.length > 0) {
       const userParticipant = participants.find(p => p.userId === user.uid);
       if (userParticipant) {
-        setUserSide(userParticipant.side);
+        // NEUTRAL은 무시하고 PRO 또는 CON만 허용
+        if (userParticipant.side === 'PRO' || userParticipant.side === 'CON') {
+          setUserSide(userParticipant.side);
+        }
       }
     }
   }, [user, id, participants]);
@@ -86,8 +103,26 @@ export default function DebateRoom() {
     }
   }, [messages]);
 
+  // 30초마다 활동 상태 업데이트 (heartbeat)
+  useEffect(() => {
+    if (!user || !id) return;
+
+    const updateActivity = async () => {
+      await updateParticipantActivity(id);
+    };
+
+    // 즉시 한 번 업데이트
+    updateActivity();
+
+    // 30초마다 업데이트
+    const interval = setInterval(updateActivity, 30000);
+
+    return () => clearInterval(interval);
+  }, [user, id]);
+
   const handleSend = async () => {
-    if (!input.trim() || !user || !id) return;
+    // 찬성/반대를 선택하지 않았으면 메시지 전송 불가 (NEUTRAL도 불가)
+    if (!input.trim() || !user || !id || !userSide || userSide === 'NEUTRAL') return;
 
     try {
       // 사용자가 아직 참여하지 않았으면 먼저 참여
@@ -115,7 +150,10 @@ export default function DebateRoom() {
     }
   };
 
-  const toggleLike = (msgId: string) => {
+  const toggleLike = async (msgId: string) => {
+    if (!user) return;
+
+    // 먼저 로컬 상태 업데이트 (UI 즉시 반영)
     setLikedMessages(prev => {
       const newSet = new Set(prev);
       if (newSet.has(msgId)) {
@@ -125,6 +163,9 @@ export default function DebateRoom() {
       }
       return newSet;
     });
+
+    // Firestore에 좋아요 저장
+    await toggleMessageLike(msgId);
   };
 
   const startReply = (username: string) => {
@@ -287,14 +328,14 @@ export default function DebateRoom() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
                 className="flex-1 bg-transparent border-none focus:ring-0 text-white text-sm resize-none h-[48px] py-3.5 no-scrollbar"
-                placeholder={user ? "의견을 남겨보세요..." : "로그인이 필요합니다"}
-                disabled={!user}
+                placeholder={!user ? "로그인이 필요합니다" : (!userSide || userSide === 'NEUTRAL') ? "찬성 또는 반대를 선택해주세요" : "의견을 남겨보세요..."}
+                disabled={!user || !userSide || userSide === 'NEUTRAL'}
               />
               <button
                 onClick={handleSend}
-                disabled={!input.trim() || !user}
+                disabled={!input.trim() || !user || !userSide || userSide === 'NEUTRAL'}
                 className={`size-11 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
-                  input.trim() && user
+                  input.trim() && user && userSide && userSide !== 'NEUTRAL'
                   ? 'bg-primary text-white shadow-lg shadow-primary/20 hover:bg-blue-600'
                   : 'bg-slate-800 text-slate-500 cursor-not-allowed'
                 }`}
@@ -342,10 +383,16 @@ export default function DebateRoom() {
                       </div>
                     </div>
                     <div className="flex items-center justify-center">
-                      <div className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)]"></span>
-                      </div>
+                      {isUserActive(p.lastActiveAt as Timestamp) ? (
+                        <div className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)]"></span>
+                        </div>
+                      ) : (
+                        <div className="relative flex h-2 w-2">
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-600"></span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
