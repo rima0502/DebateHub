@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { HashRouter, Routes, Route, Link } from 'react-router-dom';
+import { HashRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { useAuth } from './src/hooks/useAuth';
 import Home from './pages/Home';
 import CreateDebate from './pages/CreateDebate';
 import DebateRoom from './pages/DebateRoom';
@@ -13,31 +14,60 @@ import Inquiry from './pages/Inquiry';
 import ReportUser from './pages/ReportUser';
 import DebateList from './pages/DebateList';
 
-const Header = () => (
-  <header className="sticky top-0 z-50 flex items-center justify-between border-b border-slate-200 dark:border-border-dark bg-white/80 dark:bg-background-dark/80 backdrop-blur-md px-4 sm:px-10 py-3">
-    <div className="flex items-center gap-8 w-full max-w-[1440px] mx-auto">
-      <Link to="/" className="flex items-center gap-3 text-slate-900 dark:text-white shrink-0">
-        <div className="size-8 text-primary">
-          <span className="material-symbols-outlined text-3xl">forum</span>
-        </div>
-        <h2 className="text-xl font-bold leading-tight tracking-tight">DebateHub</h2>
-      </Link>
-      
-      <div className="hidden lg:flex items-center gap-6 xl:gap-9 ml-auto">
-        <Link to="/debates" className="text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-white text-sm font-medium">카테고리</Link>
-      </div>
+const Header = () => {
+  const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
 
-      <div className="flex gap-3 ml-auto lg:ml-0">
-        <Link to="/login" className="hidden sm:flex h-9 px-4 items-center justify-center rounded-lg border border-slate-200 dark:border-border-dark hover:bg-slate-100 dark:hover:bg-surface-dark text-slate-700 dark:text-white text-sm font-medium">
-          로그인
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
+
+  return (
+    <header className="sticky top-0 z-50 flex items-center justify-between border-b border-slate-800 bg-[#0b0f14]/80 backdrop-blur-md px-4 sm:px-10 py-3">
+      <div className="flex items-center gap-8 w-full max-w-[1440px] mx-auto">
+        <Link to="/" className="flex items-center gap-3 text-slate-900 dark:text-white shrink-0">
+          <div className="size-8 text-primary">
+            <span className="material-symbols-outlined text-3xl">forum</span>
+          </div>
+          <h2 className="text-xl font-bold leading-tight tracking-tight">DebateHub</h2>
         </Link>
-        <Link to="/signup" className="flex h-9 px-4 items-center justify-center rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-bold shadow-lg shadow-primary/20">
-          회원가입
-        </Link>
+
+        <div className="flex gap-3 ml-auto items-center">
+          {loading ? (
+            <div className="h-9 px-4 flex items-center">
+              <div className="size-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : user ? (
+            <>
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700">
+                <div className="size-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-bold">
+                  {user.displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
+                </div>
+                <span className="text-sm text-slate-300">{user.displayName || user.email}</span>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="flex h-9 px-4 items-center justify-center rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 hover:text-white text-sm font-medium transition-colors"
+              >
+                로그아웃
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="hidden sm:flex h-9 px-4 items-center justify-center rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 hover:text-white text-sm font-medium transition-colors">
+                로그인
+              </Link>
+              <Link to="/signup" className="flex h-9 px-4 items-center justify-center rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-bold shadow-lg shadow-primary/20 transition-colors">
+                회원가입
+              </Link>
+            </>
+          )}
+        </div>
       </div>
-    </div>
-  </header>
-);
+    </header>
+  );
+};
 
 const Footer = () => (
   <footer className="mt-auto border-t border-slate-200 dark:border-border-dark py-8 bg-white dark:bg-background-dark">
@@ -49,10 +79,10 @@ const Footer = () => (
         <span className="text-lg font-bold">DebateHub</span>
       </div>
       <div className="flex gap-6 flex-wrap justify-center">
-        <Link to="/privacy" className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary">개인정보처리방침</Link>
-        <Link to="/terms" className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary">이용약관</Link>
-        <Link to="/guidelines" className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary">가이드라인</Link>
-        <Link to="/inquiry" className="text-sm text-slate-500 dark:text-slate-400 hover:text-primary">문의하기</Link>
+        <Link to="/privacy" className="text-sm text-white hover:text-primary">개인정보처리방침</Link>
+        <Link to="/terms" className="text-sm text-white hover:text-primary">이용약관</Link>
+        <Link to="/guidelines" className="text-sm text-white hover:text-primary">가이드라인</Link>
+        <Link to="/inquiry" className="text-sm text-white hover:text-primary">문의하기</Link>
       </div>
       <p className="text-xs text-slate-400 dark:text-slate-600">
         © 2026 DebateHub. All rights reserved.
@@ -64,7 +94,7 @@ const Footer = () => (
 export default function App() {
   return (
     <HashRouter>
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen bg-[#0b0f14]">
         <Header />
         <main className="flex-1">
           <Routes>

@@ -1,4 +1,4 @@
-
+// 레거시 타입 정의 (기존 코드 호환성을 위해 유지)
 export enum Category {
   POLITICS = '정치/사회',
   SCIENCE = '과학/기술',
@@ -18,7 +18,7 @@ export interface Debate {
   thumbnail?: string;
   status: 'HOT' | 'LIVE' | 'ENDING';
   startTime: string;
-  isGuestAllowed: boolean; // 비회원 참여 가능 여부 추가
+  isGuestAllowed: boolean;
 }
 
 export interface ChatMessage {
@@ -40,3 +40,6 @@ export interface Participant {
   status: string;
   warnings: number;
 }
+
+// 새로운 타입 정의는 src/types/debate.ts 참조
+export * from './src/types/debate';

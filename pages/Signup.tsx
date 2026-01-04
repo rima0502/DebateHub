@@ -1,8 +1,86 @@
 
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../src/hooks/useAuth';
 
 export default function Signup() {
+  const navigate = useNavigate();
+  const { user, signUpWithEmail, signInWithGoogle } = useAuth();
+
+  // 이미 로그인한 사용자는 홈으로 리다이렉트
+  useEffect(() => {
+    if (user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [guidelinesAgreed, setGuidelinesAgreed] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+
+  const handleEmailSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!termsAgreed || !guidelinesAgreed) {
+      setError('모든 약관에 동의해주세요.');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('비밀번호는 8자 이상이어야 합니다.');
+      return;
+    }
+
+    setLoading(true);
+    const result = await signUpWithEmail(email, password);
+    setLoading(false);
+
+    if (result.success) {
+      setEmailSent(true);
+    } else {
+      setError(result.error || '회원가입에 실패했습니다.');
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    setError('');
+    setLoading(true);
+    const result = await signInWithGoogle();
+    setLoading(false);
+
+    if (result.success) {
+      navigate('/');
+    } else {
+      setError(result.error || 'Google 로그인에 실패했습니다.');
+    }
+  };
+
+  if (emailSent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0b0f14] p-6">
+        <div className="max-w-md w-full bg-[#111418] border border-slate-800 rounded-xl p-8 text-center">
+          <div className="size-16 mx-auto mb-6 rounded-full bg-primary/20 flex items-center justify-center">
+            <span className="material-symbols-outlined text-primary text-4xl">mail</span>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-3">이메일을 확인해주세요</h2>
+          <p className="text-slate-400 mb-6 leading-relaxed">
+            <span className="font-bold text-white">{email}</span>로 인증 메일을 발송했습니다.
+            <br />이메일을 확인하고 인증을 완료해주세요.
+          </p>
+          <Link to="/login" className="inline-block w-full h-12 bg-primary hover:bg-blue-600 text-white font-bold rounded-lg transition-all flex items-center justify-center">
+            로그인 페이지로 이동
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-[#0b0f14]">
       {/* Left Section (Branding & Features) */}
@@ -64,34 +142,48 @@ export default function Signup() {
             </p>
           </div>
 
-          <form className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-bold text-slate-300">닉네임</label>
-              <input 
-                className="w-full h-14 px-4 rounded-lg bg-[#1c2127] border border-slate-700 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-slate-600" 
-                placeholder="토론에서 사용할 닉네임" 
-              />
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-lg flex gap-3 items-center">
+              <span className="material-symbols-outlined text-red-500 text-xl">error</span>
+              <p className="text-red-400 text-sm font-medium">{error}</p>
             </div>
+          )}
 
+          <form onSubmit={handleEmailSignup} className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <label className="text-sm font-bold text-slate-300">이메일 주소</label>
-              <input 
-                className="w-full h-14 px-4 rounded-lg bg-[#1c2127] border border-slate-700 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-slate-600" 
+              <input
+                className="w-full h-14 px-4 rounded-lg bg-[#1c2127] border border-slate-700 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-slate-600"
                 type="email"
-                placeholder="name@example.com" 
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
               />
             </div>
 
             <div className="flex flex-col gap-2">
               <label className="text-sm font-bold text-slate-300">비밀번호</label>
               <div className="relative">
-                <input 
-                  className="w-full h-14 px-4 pr-12 rounded-lg bg-[#1c2127] border border-slate-700 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-slate-600" 
-                  type="password" 
-                  placeholder="8자 이상 영문, 숫자, 특수문자 포함" 
+                <input
+                  className="w-full h-14 px-4 pr-12 rounded-lg bg-[#1c2127] border border-slate-700 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-slate-600"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="8자 이상 영문, 숫자, 특수문자 포함"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  disabled={loading}
                 />
-                <button type="button" className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
-                  <span className="material-symbols-outlined text-[20px]">visibility</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                >
+                  <span className="material-symbols-outlined text-[20px]">
+                    {showPassword ? 'visibility_off' : 'visibility'}
+                  </span>
                 </button>
               </div>
             </div>
@@ -104,7 +196,7 @@ export default function Signup() {
               <div className="flex flex-col gap-1">
                 <h4 className="text-sm font-bold text-white">검증된 익명성 안내</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  건전한 토론 문화를 위해 추후 본인 인증 절차가 추가될 수 있습니다. 귀하의 개인정보는 암호화되어 안전하게 보호되며, 토론 참여 시에는 닉네임만 공개됩니다.
+                  건전한 토론 문화를 위해 추후 본인 인증 절차가 추가될 수 있습니다. 귀하의 개인정보는 암호화되어 안전하게 보호됩니다.
                 </p>
               </div>
             </div>
@@ -112,21 +204,37 @@ export default function Signup() {
             {/* Agreement Checkboxes */}
             <div className="flex flex-col gap-3">
               <label className="flex items-center gap-3 cursor-pointer group">
-                <input type="checkbox" className="size-5 rounded bg-[#1c2127] border-slate-700 text-primary focus:ring-offset-0 focus:ring-0" />
+                <input
+                  type="checkbox"
+                  className="size-5 rounded bg-[#1c2127] border-slate-700 text-primary focus:ring-offset-0 focus:ring-0"
+                  checked={termsAgreed}
+                  onChange={(e) => setTermsAgreed(e.target.checked)}
+                  disabled={loading}
+                />
                 <span className="text-sm text-slate-400">
                   <Link to="/terms" className="text-primary hover:underline">이용약관</Link> 및 <Link to="/privacy" className="text-primary hover:underline">개인정보 처리방침</Link>에 동의합니다.
                 </span>
               </label>
               <label className="flex items-center gap-3 cursor-pointer group">
-                <input type="checkbox" className="size-5 rounded bg-[#1c2127] border-slate-700 text-primary focus:ring-offset-0 focus:ring-0" />
+                <input
+                  type="checkbox"
+                  className="size-5 rounded bg-[#1c2127] border-slate-700 text-primary focus:ring-offset-0 focus:ring-0"
+                  checked={guidelinesAgreed}
+                  onChange={(e) => setGuidelinesAgreed(e.target.checked)}
+                  disabled={loading}
+                />
                 <span className="text-sm text-slate-400">
                   <Link to="/guidelines" className="text-primary hover:underline">커뮤니티 가이드라인</Link>에 동의합니다.
                 </span>
               </label>
             </div>
 
-            <button type="button" className="w-full h-14 bg-primary hover:bg-blue-600 text-white font-bold rounded-lg shadow-lg shadow-primary/20 mt-2 transition-all active:scale-[0.98]">
-              회원가입 완료
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-14 bg-primary hover:bg-blue-600 text-white font-bold rounded-lg shadow-lg shadow-primary/20 mt-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? '처리 중...' : '회원가입 완료'}
             </button>
 
             <div className="relative flex items-center py-2">
@@ -136,7 +244,12 @@ export default function Signup() {
             </div>
 
             <div className="flex flex-col gap-3">
-              <button type="button" className="flex items-center justify-center gap-3 w-full h-14 rounded-lg border border-slate-800 bg-slate-900/40 hover:bg-slate-800 text-white text-sm font-bold transition-all active:scale-[0.98]">
+              <button
+                type="button"
+                onClick={handleGoogleSignup}
+                disabled={loading}
+                className="flex items-center justify-center gap-3 w-full h-14 rounded-lg border border-slate-800 bg-slate-900/40 hover:bg-slate-800 text-white text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <svg className="size-5" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                   <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />

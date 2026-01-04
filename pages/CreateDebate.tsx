@@ -48,7 +48,7 @@ export default function CreateDebate() {
               </p>
             </div>
           </div>
-          
+
           <div className="mx-4 flex flex-col gap-8 rounded-2xl bg-[#1c2127] border border-slate-800 p-6 md:p-10 shadow-xl">
             {/* Category Select */}
             <div className="flex flex-col gap-4">
@@ -58,11 +58,10 @@ export default function CreateDebate() {
                   <button
                     key={cat}
                     onClick={() => setCategory(cat)}
-                    className={`flex h-10 items-center justify-center gap-2 px-4 rounded-lg text-sm font-bold transition-all ${
-                      category === cat 
-                        ? 'bg-primary text-white shadow-lg shadow-primary/20' 
+                    className={`flex h-10 items-center justify-center gap-2 px-4 rounded-lg text-sm font-bold transition-all ${category === cat
+                        ? 'bg-primary text-white shadow-lg shadow-primary/20'
                         : 'bg-[#111418] text-slate-500 border border-slate-800 hover:text-slate-300'
-                    }`}
+                      }`}
                   >
                     <span className="material-symbols-outlined text-[20px]">
                       {cat === Category.POLITICS ? 'gavel' : cat === Category.SCIENCE ? 'science' : cat === Category.HUMANITIES ? 'psychology' : cat === Category.ECONOMY ? 'trending_up' : 'chat_bubble'}
@@ -80,7 +79,7 @@ export default function CreateDebate() {
               <label className="flex flex-col gap-2">
                 <span className="text-lg font-bold text-white">논제 (토론 주제) <span className="text-red-500">*</span></span>
                 <span className="text-slate-500 text-sm">참여자들이 명확히 이해할 수 있는 문장으로 작성해주세요.</span>
-                <input 
+                <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full h-14 p-4 mt-2 rounded-xl bg-[#0b0f14] border border-slate-800 text-white placeholder:text-slate-700 focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all"
@@ -95,7 +94,7 @@ export default function CreateDebate() {
                 <span className="text-lg font-bold text-white">발제문 (나의 의견) <span className="text-red-500">*</span></span>
                 <span className="text-slate-500 text-sm">토론의 시작을 알리는 첫 게시물입니다. 논리적으로 서술해주세요.</span>
                 <div className="relative mt-2">
-                  <textarea 
+                  <textarea
                     value={openingStatement}
                     onChange={(e) => setOpeningStatement(e.target.value)}
                     className="w-full min-h-[240px] p-4 rounded-xl bg-[#0b0f14] border border-slate-800 text-white placeholder:text-slate-700 focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all resize-none"
@@ -109,11 +108,10 @@ export default function CreateDebate() {
             <div className="flex flex-col gap-4">
               <label className="flex flex-col gap-2">
                 <span className="text-lg font-bold text-white">대표 이미지 (선택)</span>
-                <div 
+                <div
                   onClick={() => setImage(`https://picsum.photos/seed/${Math.random()}/600/400`)}
-                  className={`mt-2 flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all py-10 ${
-                    image ? 'border-primary bg-primary/5' : 'border-slate-800 bg-[#0b0f14] hover:border-slate-600'
-                  }`}
+                  className={`mt-2 flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all py-10 ${image ? 'border-primary bg-primary/5' : 'border-slate-800 bg-[#0b0f14] hover:border-slate-600'
+                    }`}
                 >
                   <span className={`material-symbols-outlined text-5xl mb-3 ${image ? 'text-primary' : 'text-slate-700'}`}>
                     {image ? 'check_circle' : 'add_photo_alternate'}
@@ -128,13 +126,13 @@ export default function CreateDebate() {
 
             {/* Action Buttons */}
             <div className="flex flex-col-reverse md:flex-row justify-end gap-4 mt-4">
-              <button 
+              <button
                 onClick={() => navigate(-1)}
                 className="h-14 w-full md:w-32 rounded-xl border border-slate-800 font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all"
               >
                 취소
               </button>
-              <button 
+              <button
                 onClick={handleSubmit}
                 className="h-14 w-full md:w-56 rounded-xl bg-primary px-6 font-black text-white shadow-lg shadow-primary/20 hover:bg-blue-600 transition-all flex items-center justify-center gap-2"
               >

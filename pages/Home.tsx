@@ -1,6 +1,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useDebates } from '../src/hooks/useDebates';
+import type { Debate as FirestoreDebate } from '../src/types/debate';
+import { Timestamp } from 'firebase/firestore';
 
 const CATEGORY_THEMES: Record<string, { color: string; border: string; bg: string; text: string }> = {
   '전체': { color: 'bg-primary', border: 'border-primary/50', bg: 'bg-primary/10', text: 'text-primary' },
@@ -24,65 +27,33 @@ const CATEGORIES = [
   { id: '교육', icon: 'school' },
 ];
 
-const MOCK_DEBATES = [
-  {
-    id: '1',
-    title: '보편적 기본소득: 필수인가, 재정 파탄인가?',
-    category: '경제',
-    time: '2시간 전',
-    desc: 'AI로 인한 일자리 감소에 대비해 보편적 기본소득(UBI)을 도입해야 한다는 주장과, 국가 재정에 막대한 부담을 주며 근로 의욕을 저하시킬 것이라는 반론이 맞서고 있습니다.',
-    participants: '1.5k',
-    messages: '342',
-    image: 'https://picsum.photos/seed/ubidebate/600/400',
-  },
-  {
-    id: '2',
-    title: '원격 근무의 제도화: 생산성 향상 vs 조직 문화 붕괴',
-    category: '정치/사회',
-    time: '10분 전',
-    desc: '포스트 코로나 시대, 전면 원격 근무를 법적으로 보장해야 하는가? 아니면 사무실 복귀가 조직의 혁신을 위해 필수적인가?',
-    participants: '856',
-    messages: '128',
-    image: 'https://picsum.photos/seed/remotework/600/400',
-  },
-  {
-    id: '3',
-    title: '우주 탐사 예산 증액: 인류의 도약인가, 자원 낭비인가?',
-    category: '기술',
-    time: '방금 전',
-    desc: '지구의 기외 위기와 빈곤 문제가 시급한 상황에서, 화성 이주 계획과 같은 거대 우주 프로젝트에 천문학적 예산을 투입하는 것이 정당한가?',
-    participants: '2.1k',
-    messages: '890',
-    image: 'https://picsum.photos/seed/spacexx/600/400',
-  },
-  {
-    id: '4',
-    title: '일회용 컵 보증금제 실효성 논란',
-    category: '환경',
-    time: '3시간 전',
-    desc: '환경 보호를 위한 보증금제가 소상공인과 소비자에게 미치는 영향과 실제 폐기물 저감 효과를 분석합니다.',
-    participants: '1.1k',
-    messages: '210',
-    image: 'https://picsum.photos/seed/ecocup/600/400',
-  },
-  {
-    id: '5',
-    title: '디지털 교과서 도입, 학습 효과인가 중독인가?',
-    category: '교육',
-    time: '5시간 전',
-    desc: '전국 초중고 디지털 교과서 전면 도입에 따른 교육의 질 향상과 스마트폰/태블릿 중독 우려 사이의 팽팽한 토론.',
-    participants: '742',
-    messages: '156',
-    image: 'https://picsum.photos/seed/education/600/400',
-  }
-];
+// Firestore 데이터를 화면 표시용으로 변환하는 헬퍼 함수
+const formatDebateForDisplay = (debate: FirestoreDebate) => {
+  const getTimeAgo = (timestamp: Timestamp) => {
+    const now = Date.now();
+    const debateTime = timestamp.toMillis();
+    const diff = now - debateTime;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
 
-const MOCK_RECENT_VISITS = [
-  { id: '1', title: '보편적 기본소득: 필수인가...', category: '경제', time: '방금 전' },
-  { id: '4', title: '일회용 컵 보증금제 실효성...', category: '환경', time: '1시간 전' },
-  { id: '10', title: '청년 병역 의무화 개편안', category: '정치', time: '3시간 전' },
-  { id: '12', title: '초중고 채식 급식 확대', category: '교육', time: '어제' },
-];
+    if (minutes < 1) return '방금 전';
+    if (minutes < 60) return `${minutes}분 전`;
+    if (hours < 24) return `${hours}시간 전`;
+    return `${days}일 전`;
+  };
+
+  return {
+    id: debate.id,
+    title: debate.title,
+    category: debate.category,
+    time: getTimeAgo(debate.createdAt as Timestamp),
+    desc: debate.description,
+    participants: debate.participantCount.toString(),
+    messages: debate.messageCount.toString(),
+    image: debate.imageUrl || 'https://picsum.photos/seed/debate/600/400',
+  };
+};
 
 const MOCK_FEED_DATA = [
   { user: 'K', cat: '경제', text: '"기본소득은 근로 의욕 저하보다 소비 활성화 효과가 더 큽니다." 라는 반박이 등록되었습니다.', time: '방금 전' },
@@ -102,17 +73,22 @@ const parseCount = (str: string): number => {
 export default function Home() {
   const [activeCategory, setActiveCategory] = useState('전체');
   const [isFeedExpanded, setIsFeedExpanded] = useState(false);
-  const [pinnedIds, setPinnedIds] = useState<string[]>(['1']);
-  const [userDebates, setUserDebates] = useState<any[]>([]);
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+  const [recentVisits, setRecentVisits] = useState<any[]>([]);
+
+  // Firestore에서 토론방 데이터 가져오기
+  const { debates: firestoreDebates, loading } = useDebates(activeCategory === '전체' ? undefined : activeCategory as any);
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('user_debates') || '[]');
-    setUserDebates(saved);
+    const visits = JSON.parse(localStorage.getItem('recent_visits') || '[]');
+    setRecentVisits(visits);
   }, []);
 
+  // Firestore 데이터를 화면 표시용 포맷으로 변환
   const combinedDebates = useMemo(() => {
-    return [...userDebates, ...MOCK_DEBATES];
-  }, [userDebates]);
+    if (loading) return [];
+    return firestoreDebates.map(formatDebateForDisplay);
+  }, [firestoreDebates, loading]);
 
   // 상단 히어로 섹션에 표시할 참여자 수가 가장 많은 토론 추출
   const topDebate = useMemo(() => {
@@ -133,8 +109,8 @@ export default function Home() {
     );
   };
 
-  const pinnedDebates = MOCK_RECENT_VISITS.filter(v => pinnedIds.includes(v.id));
-  const recentDebates = MOCK_RECENT_VISITS.filter(v => !pinnedIds.includes(v.id));
+  const pinnedDebates = recentVisits.filter(v => pinnedIds.includes(v.id));
+  const recentDebates = recentVisits.filter(v => !pinnedIds.includes(v.id));
 
   return (
     <div className="flex flex-col items-center w-full bg-[#0b0f14]">
@@ -212,7 +188,7 @@ export default function Home() {
           <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
               <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2 text-white">
-                <span className="material-symbols-outlined text-primary fill-1">local_fire_department</span>
+                <span className="material-symbols-outlined text-red-500 fill-1">local_fire_department</span>
                 지금 핫한 토론 {activeCategory !== '전체' && <span className="text-sm font-medium text-slate-500">({activeCategory})</span>}
               </h2>
               <Link to="/debates" className="text-sm font-bold text-primary hover:underline flex items-center gap-1">
@@ -221,7 +197,14 @@ export default function Home() {
             </div>
             
             <div className="flex flex-col gap-6 min-h-[300px]">
-              {filteredDebates.length > 0 ? (
+              {loading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="size-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-400 text-sm font-medium">토론방 불러오는 중...</p>
+                  </div>
+                </div>
+              ) : filteredDebates.length > 0 ? (
                 filteredDebates.map(debate => {
                   const theme = CATEGORY_THEMES[debate.category] || CATEGORY_THEMES['전체'];
                   return (
