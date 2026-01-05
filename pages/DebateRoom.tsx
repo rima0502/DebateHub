@@ -124,7 +124,7 @@ export default function DebateRoom() {
       const scrolledFromBottom = scrollHeight - scrollTop - clientHeight;
 
       // 100px 이상 위로 스크롤하면 버튼 표시
-      setShowScrollButton(scrolledFromBottom > 3000);
+      setShowScrollButton(scrolledFromBottom > 100);
     };
 
     const scrollElement = scrollRef.current;
