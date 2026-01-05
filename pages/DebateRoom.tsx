@@ -320,11 +320,19 @@ export default function DebateRoom() {
               messages.map((msg) => (
                 <div key={msg.id} id={`msg-${msg.id}`} className="flex gap-4 group animate-in fade-in slide-in-from-bottom-2 transition-all duration-300">
                   <div className="shrink-0 pt-1">
-                    <div className={`size-10 rounded-full p-0.5 border-2 ${msg.side === 'PRO' ? 'border-primary' : msg.side === 'CON' ? 'border-secondary' : 'border-purple-500'
+                    <div className={`size-10 rounded-full p-0.5 border-2 overflow-hidden ${msg.side === 'PRO' ? 'border-primary' : msg.side === 'CON' ? 'border-secondary' : 'border-purple-500'
                       }`}>
-                      <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-sm">
-                        {msg.userName?.charAt(0) || 'U'}
-                      </div>
+                      {msg.userAvatar ? (
+                        <img
+                          src={msg.userAvatar}
+                          alt={msg.userName || '익명'}
+                          className="w-full h-full rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-sm">
+                          {msg.userName?.charAt(0) || 'U'}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col flex-1 min-w-0">
@@ -491,17 +499,22 @@ export default function DebateRoom() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={`size-8 rounded-full border transition-transform group-hover/user:scale-105 ${p.side === 'PRO' ? 'border-primary' : p.side === 'CON' ? 'border-secondary' : 'border-purple-500'
+                      <div className={`size-8 rounded-full border transition-transform group-hover/user:scale-105 overflow-hidden ${p.side === 'PRO' ? 'border-primary' : p.side === 'CON' ? 'border-secondary' : 'border-purple-500'
                         }`}>
-                        <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-xs">
-                          {p.userName?.charAt(0) || 'U'}
-                        </div>
+                        {p.userAvatar ? (
+                          <img
+                            src={p.userAvatar}
+                            alt={p.userName || '익명'}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-xs">
+                            {p.userName?.charAt(0) || 'U'}
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col">
                         <span className="text-sm font-bold text-slate-300">{p.userName || '익명'}</span>
-                        <span className="text-[10px] text-slate-500">
-                          {p.side === 'PRO' ? '찬성측' : p.side === 'CON' ? '반대측' : '중립'}
-                        </span>
                       </div>
                     </div>
                     <div className="flex items-center justify-center">

@@ -66,9 +66,17 @@ const Header = () => {
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700 hover:bg-slate-800 hover:border-slate-600 transition-colors cursor-pointer"
               >
-                <div className="size-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-bold">
-                  {user.displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
-                </div>
+                {user.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt="프로필"
+                    className="size-6 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="size-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-bold">
+                    {user.displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
+                  </div>
+                )}
                 <span className="text-sm text-slate-300">{user.displayName || user.email}</span>
                 <span className="material-symbols-outlined text-slate-400 text-lg">
                   {isDropdownOpen ? 'expand_less' : 'expand_more'}
@@ -114,9 +122,19 @@ const Header = () => {
               {/* 모바일용 간단 버튼 */}
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="sm:hidden size-9 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-sm font-bold"
+                className="sm:hidden size-9 rounded-full overflow-hidden"
               >
-                {user.displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
+                {user.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt="프로필"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="size-9 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-sm font-bold">
+                    {user.displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
+                  </div>
+                )}
               </button>
             </div>
           ) : (

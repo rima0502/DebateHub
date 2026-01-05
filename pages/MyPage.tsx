@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/hooks/useAuth';
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../src/firebase';
 
 export default function MyPage() {
@@ -96,6 +96,47 @@ export default function MyPage() {
       }
 
       await updateDoc(doc(db, 'users', user.uid), updateData);
+
+      // participants 컬렉션 업데이트
+      const participantsQuery = query(
+        collection(db, 'participants'),
+        where('userId', '==', user.uid)
+      );
+      const participantsSnapshot = await getDocs(participantsQuery);
+
+      // messages 컬렉션 업데이트
+      const messagesQuery = query(
+        collection(db, 'messages'),
+        where('userId', '==', user.uid)
+      );
+      const messagesSnapshot = await getDocs(messagesQuery);
+
+      // 배치 업데이트 (최대 500개씩)
+      const batch = writeBatch(db);
+      let batchCount = 0;
+
+      // participants 업데이트
+      participantsSnapshot.forEach((docSnapshot) => {
+        batch.update(docSnapshot.ref, {
+          userName: displayName.trim(),
+          userAvatar: finalPhotoURL
+        });
+        batchCount++;
+      });
+
+      // messages 업데이트
+      messagesSnapshot.forEach((docSnapshot) => {
+        batch.update(docSnapshot.ref, {
+          userName: displayName.trim(),
+          userAvatar: finalPhotoURL
+        });
+        batchCount++;
+      });
+
+      // 배치 커밋 (500개 제한이 있으므로 확인)
+      if (batchCount > 0) {
+        await batch.commit();
+      }
 
       alert('프로필이 업데이트되었습니다!');
 
