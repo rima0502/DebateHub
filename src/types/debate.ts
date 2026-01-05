@@ -12,6 +12,13 @@ export type DebateStatus = 'active' | 'closed' | 'pending';
 // 참여자 상태
 export type ParticipantStatus = '활동 중' | '대기 중' | '오프라인';
 
+// 강제퇴장된 사용자 정보
+export interface BannedUser {
+  userId: string;
+  userName: string;
+  bannedAt: Timestamp;
+}
+
 // 토론방 인터페이스
 export interface Debate {
   id: string;
@@ -27,7 +34,7 @@ export interface Debate {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   pinnedBy?: string[]; // 핀한 사용자 ID 목록
-  bannedUsers?: string[]; // 강제퇴장된 사용자 ID 목록
+  bannedUsers?: BannedUser[]; // 강제퇴장된 사용자 목록 (userId, userName 포함)
 }
 
 // 토론 메시지 인터페이스

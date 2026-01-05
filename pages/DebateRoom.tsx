@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDebateRoom } from '../src/hooks/useDebateRoom';
 import { useAuth } from '../src/hooks/useAuth';
-import { updateParticipantActivity, kickParticipant } from '../src/services/debateService';
+import { updateParticipantActivity, kickParticipant, unbanParticipant } from '../src/services/debateService';
 import { Timestamp } from 'firebase/firestore';
 import type { DebateSide } from '../src/types/debate';
 
@@ -105,7 +105,7 @@ export default function DebateRoom() {
 
   // 강제퇴장 당한 사용자 감지 (실시간 감지)
   useEffect(() => {
-    if (debate && user && debate.bannedUsers && debate.bannedUsers.includes(user.uid)) {
+    if (debate && user && debate.bannedUsers && debate.bannedUsers.some(banned => banned.userId === user.uid)) {
       alert('강제퇴장되었습니다. 방장에게 문의하세요.');
       navigate('/debates');
     }
@@ -316,6 +316,25 @@ export default function DebateRoom() {
     } catch (error) {
       console.error('강제퇴장 오류:', error);
       alert('강제퇴장 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleUnban = async (userId: string, userName: string) => {
+    if (!confirm(`"${userName}" 님의 강제퇴장을 해제하시겠습니까?\n\n해제 후 다시 토론방에 참여할 수 있습니다.`)) {
+      return;
+    }
+
+    try {
+      const result = await unbanParticipant(id || '', userId);
+
+      if (result.success) {
+        alert(`"${userName}" 님의 강제퇴장을 해제했습니다.`);
+      } else {
+        alert(result.error || '강제퇴장 해제에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('강제퇴장 해제 오류:', error);
+      alert('강제퇴장 해제 중 오류가 발생했습니다.');
     }
   };
 
@@ -605,6 +624,47 @@ export default function DebateRoom() {
             </p>
           </div>
         </div>
+
+        {/* 강제퇴장된 사용자 목록 (방장만 보임) */}
+        {debate && user && debate.creatorId === user.uid && debate.bannedUsers && debate.bannedUsers.length > 0 && (
+          <div className="flex flex-col gap-6 pt-6 border-t border-slate-800/50">
+            <div className="flex items-center justify-between">
+              <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">강제퇴장 목록</h3>
+              <span className="text-orange-500 text-sm font-bold">{debate.bannedUsers.length}명</span>
+            </div>
+            <div className="space-y-3">
+              {debate.bannedUsers.map((banned, idx) => (
+                <div
+                  key={banned.userId}
+                  className="flex items-center justify-between p-3 rounded-xl bg-orange-500/5 border border-orange-500/20 animate-in fade-in"
+                  style={{ animationDelay: `${idx * 50}ms` }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="size-8 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-orange-500 text-[16px]">block</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-400">{banned.userName}</span>
+                      <span className="text-[10px] text-slate-600">강제퇴장됨</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleUnban(banned.userId, banned.userName)}
+                    className="px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-500 text-xs font-bold hover:bg-green-500 hover:text-white transition-all flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                    해제
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="p-3 bg-orange-500/5 border border-orange-500/20 rounded-xl">
+              <p className="text-[10px] text-orange-400/60 leading-relaxed italic">
+                * 강제퇴장을 해제하면 해당 사용자가 다시 토론방에 참여할 수 있습니다.
+              </p>
+            </div>
+          </div>
+        )}
       </aside>
     </div>
   );

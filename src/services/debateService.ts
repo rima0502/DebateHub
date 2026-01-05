@@ -490,7 +490,7 @@ export async function joinDebate(debateId: string, side: DebateSide): Promise<{ 
     }
 
     // 강제퇴장 당한 사용자인지 확인
-    if (debate.bannedUsers && debate.bannedUsers.includes(user.uid)) {
+    if (debate.bannedUsers && debate.bannedUsers.some(banned => banned.userId === user.uid)) {
       return { success: false, error: '강제퇴장되었습니다. 방장에게 문의하세요.' };
     }
 
@@ -682,7 +682,7 @@ export async function kickParticipant(debateId: string, userId: string): Promise
       return { success: false, error: '자기 자신을 강제퇴장시킬 수 없습니다.' };
     }
 
-    // 참여자 제거
+    // 참여자 정보 가져오기
     const q = query(
       collection(db, PARTICIPANTS_COLLECTION),
       where('debateId', '==', debateId),
@@ -690,7 +690,12 @@ export async function kickParticipant(debateId: string, userId: string): Promise
     );
     const participantSnapshot = await getDocs(q);
 
+    let userName = '익명';
     if (!participantSnapshot.empty) {
+      const participantData = participantSnapshot.docs[0].data();
+      userName = participantData.userName || '익명';
+
+      // 참여자 제거
       await deleteDoc(participantSnapshot.docs[0].ref);
 
       // 토론방의 참여자 카운트 감소
@@ -699,9 +704,13 @@ export async function kickParticipant(debateId: string, userId: string): Promise
       });
     }
 
-    // 강제퇴장 목록에 추가
+    // 강제퇴장 목록에 추가 (userId와 userName 함께 저장)
     await updateDoc(doc(db, DEBATES_COLLECTION, debateId), {
-      bannedUsers: arrayUnion(userId)
+      bannedUsers: arrayUnion({
+        userId,
+        userName,
+        bannedAt: serverTimestamp()
+      })
     });
 
     return { success: true };
@@ -732,9 +741,15 @@ export async function unbanParticipant(debateId: string, userId: string): Promis
     }
 
     // 강제퇴장 목록에서 제거
-    await updateDoc(doc(db, DEBATES_COLLECTION, debateId), {
-      bannedUsers: arrayRemove(userId)
-    });
+    // bannedUsers가 객체 배열이므로 해당 userId를 가진 객체를 찾아서 제거
+    if (debate.bannedUsers) {
+      const bannedUser = debate.bannedUsers.find(banned => banned.userId === userId);
+      if (bannedUser) {
+        await updateDoc(doc(db, DEBATES_COLLECTION, debateId), {
+          bannedUsers: arrayRemove(bannedUser)
+        });
+      }
+    }
 
     return { success: true };
   } catch (error: any) {
