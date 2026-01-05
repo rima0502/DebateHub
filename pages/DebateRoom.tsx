@@ -53,7 +53,7 @@ export default function DebateRoom() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const { debate, messages, participants, loading, sendMessage, joinDebate, toggleMessageLike } = useDebateRoom(id || '');
+  const { debate, messages, participants, loading, error, sendMessage, joinDebate, toggleMessageLike } = useDebateRoom(id || '');
 
   const [input, setInput] = useState('');
   const [userSide, setUserSide] = useState<DebateSide | null>(null);
@@ -347,6 +347,14 @@ export default function DebateRoom() {
       alert('강제퇴장 해제 중 오류가 발생했습니다.');
     }
   };
+
+  // 삭제된 토론방 처리
+  useEffect(() => {
+    if (!loading && error) {
+      alert('삭제되었거나 존재하지 않는 토론방입니다.');
+      navigate('/debates');
+    }
+  }, [loading, error, navigate]);
 
   // 로딩 중
   if (loading || !debate) {
