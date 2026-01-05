@@ -103,6 +103,14 @@ export default function DebateRoom() {
     }
   }, [debate, navigate]);
 
+  // 강제퇴장 당한 사용자 감지 (실시간 감지)
+  useEffect(() => {
+    if (debate && user && debate.bannedUsers && debate.bannedUsers.includes(user.uid)) {
+      alert('강제퇴장되었습니다. 방장에게 문의하세요.');
+      navigate('/debates');
+    }
+  }, [debate, user, navigate]);
+
   const theme = debate ? CATEGORY_THEMES[debate.category] || CATEGORY_THEMES['전체'] : CATEGORY_THEMES['전체'];
 
   // 스크롤 위치 감지
@@ -204,7 +212,11 @@ export default function DebateRoom() {
       // 사용자가 아직 참여하지 않았으면 먼저 참여
       const userParticipant = participants.find(p => p.userId === user.uid);
       if (!userParticipant) {
-        await joinDebate(userSide);
+        const joinResult = await joinDebate(userSide);
+        if (!joinResult.success) {
+          alert(joinResult.error || '토론방 참여에 실패했습니다.');
+          return;
+        }
       }
 
       const messageData: any = {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  getDebate,
+  subscribeToDebate,
   subscribeToMessages,
   sendMessage,
   toggleMessageLike,
@@ -23,19 +23,18 @@ export function useDebateRoom(debateId: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 토론방 정보 로드
+  // 토론방 실시간 구독
   useEffect(() => {
-    const loadDebate = async () => {
-      const debateData = await getDebate(debateId);
+    const unsubscribe = subscribeToDebate(debateId, (debateData) => {
       if (debateData) {
         setDebate(debateData);
       } else {
         setError('토론방을 찾을 수 없습니다.');
       }
       setLoading(false);
-    };
+    });
 
-    loadDebate();
+    return () => unsubscribe();
   }, [debateId]);
 
   // 메시지 실시간 구독

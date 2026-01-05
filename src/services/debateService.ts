@@ -178,6 +178,28 @@ export function subscribeToDebates(
 }
 
 /**
+ * 단일 토론방 실시간 구독
+ */
+export function subscribeToDebate(
+  debateId: string,
+  callback: (debate: Debate | null) => void
+): () => void {
+  const debateRef = doc(db, DEBATES_COLLECTION, debateId);
+
+  return onSnapshot(debateRef, (snapshot) => {
+    if (snapshot.exists()) {
+      const debate = {
+        id: snapshot.id,
+        ...snapshot.data()
+      } as Debate;
+      callback(debate);
+    } else {
+      callback(null);
+    }
+  });
+}
+
+/**
  * 토론방 삭제 (생성자만 가능)
  */
 export async function deleteDebate(debateId: string): Promise<{ success: boolean; error?: string }> {

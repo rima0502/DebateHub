@@ -1,0 +1,113 @@
+// Firebase Console에 복사해서 붙여넣을 보안 규칙
+// https://console.firebase.google.com → Firestore Database → 규칙
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 사용자 인증 헬퍼 함수
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // 토론방 (debates)
+    match /debates/{debateId} {
+      // 모든 사용자가 읽기 가능
+      allow read: if true;
+
+      // 인증된 사용자만 생성 가능
+      allow create: if isSignedIn()
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 200
+        && request.resource.data.description.size() <= 2000
+        && request.resource.data.creatorId == request.auth.uid;
+
+      // 생성자만 삭제 가능
+      allow delete: if isOwner(resource.data.creatorId);
+
+      // 업데이트 규칙 (중요!)
+      allow update: if
+        // 생성자는 모든 것 수정 가능 (삭제, 강제퇴장 등)
+        isOwner(resource.data.creatorId)
+        // 또는 참여자 수/메시지 수/updatedAt/pinnedBy만 변경하는 경우
+        || (isSignedIn() &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['participantCount', 'messageCount', 'updatedAt', 'pinnedBy']));
+    }
+
+    // 메시지 (messages)
+    match /messages/{messageId} {
+      // 모든 사용자가 읽기 가능
+      allow read: if true;
+
+      // 인증된 사용자만 생성 가능
+      allow create: if isSignedIn()
+        && request.resource.data.content.size() > 0
+        && request.resource.data.content.size() <= 5000
+        && request.resource.data.userId == request.auth.uid;
+
+      // 좋아요 업데이트만 허용
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy']);
+
+      // 작성자 또는 방장이 삭제 가능 (방 삭제 시 필요)
+      allow delete: if isSignedIn() && (
+        isOwner(resource.data.userId)
+        || exists(/databases/$(database)/documents/debates/$(resource.data.debateId))
+           && get(/databases/$(database)/documents/debates/$(resource.data.debateId)).data.creatorId == request.auth.uid
+      );
+    }
+
+    // 참여자 (participants)
+    match /participants/{participantId} {
+      // 모든 사용자가 읽기 가능
+      allow read: if true;
+
+      // 인증된 사용자만 생성 가능
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+
+      // 본인 또는 호스트만 수정 가능
+      allow update: if isOwner(resource.data.userId);
+
+      // 본인 또는 방장이 삭제 가능 (강제퇴장 시 필요)
+      allow delete: if isSignedIn() && (
+        isOwner(resource.data.userId)
+        || exists(/databases/$(database)/documents/debates/$(resource.data.debateId))
+           && get(/databases/$(database)/documents/debates/$(resource.data.debateId)).data.creatorId == request.auth.uid
+      );
+    }
+
+    // 알림 (notifications)
+    match /notifications/{notificationId} {
+      // 본인 알림만 읽기 가능
+      allow read: if isOwner(resource.data.userId);
+
+      // 시스템에서만 생성 가능 (인증된 사용자)
+      allow create: if isSignedIn();
+
+      // 본인 알림만 수정 가능 (읽음 표시)
+      allow update: if isOwner(resource.data.userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      // 본인 알림만 삭제 가능
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // 사용자 (users)
+    match /users/{userId} {
+      // 모든 사용자가 읽기 가능
+      allow read: if true;
+
+      // 본인 프로필만 생성/수정 가능
+      allow create, update: if isOwner(userId);
+
+      // 본인 프로필만 삭제 가능
+      allow delete: if isOwner(userId);
+    }
+  }
+}
