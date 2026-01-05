@@ -134,7 +134,7 @@ export default function DebateRoom() {
       handleScroll();
       return () => scrollElement.removeEventListener('scroll', handleScroll);
     }
-  }, []);
+  }, [debate, loading]);
 
   // 메시지 변경 시 스크롤 버튼 상태 업데이트
   useEffect(() => {
