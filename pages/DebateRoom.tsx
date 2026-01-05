@@ -633,30 +633,38 @@ export default function DebateRoom() {
               <span className="text-orange-500 text-sm font-bold">{debate.bannedUsers.length}명</span>
             </div>
             <div className="space-y-3">
-              {debate.bannedUsers.map((banned, idx) => (
-                <div
-                  key={banned.userId}
-                  className="flex items-center justify-between p-3 rounded-xl bg-orange-500/5 border border-orange-500/20 animate-in fade-in"
-                  style={{ animationDelay: `${idx * 50}ms` }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="size-8 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-orange-500 text-[16px]">block</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-400">{banned.userName}</span>
-                      <span className="text-[10px] text-slate-600">강제퇴장됨</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleUnban(banned.userId, banned.userName)}
-                    className="px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-500 text-xs font-bold hover:bg-green-500 hover:text-white transition-all flex items-center gap-1"
+              {debate.bannedUsers.map((banned, idx) => {
+                // 기존 데이터(string)와 새 데이터(BannedUser 객체) 둘 다 지원
+                const bannedUserId = typeof banned === 'string' ? banned : banned.userId;
+                const bannedUserName = typeof banned === 'string' ? '사용자' : banned.userName;
+
+                return (
+                  <div
+                    key={bannedUserId}
+                    className="flex items-center justify-between p-3 rounded-xl bg-orange-500/5 border border-orange-500/20 animate-in fade-in"
+                    style={{ animationDelay: `${idx * 50}ms` }}
                   >
-                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                    해제
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-3">
+                      <div className="size-8 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-orange-500 text-[16px]">block</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-400">{bannedUserName}</span>
+                        <span className="text-[10px] text-slate-600">
+                          {typeof banned === 'string' ? `ID: ${bannedUserId.substring(0, 8)}...` : '강제퇴장됨'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleUnban(bannedUserId, bannedUserName)}
+                      className="px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-500 text-xs font-bold hover:bg-green-500 hover:text-white transition-all flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                      해제
+                    </button>
+                  </div>
+                );
+              })}
             </div>
             <div className="p-3 bg-orange-500/5 border border-orange-500/20 rounded-xl">
               <p className="text-[10px] text-orange-400/60 leading-relaxed italic">

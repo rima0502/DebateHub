@@ -34,7 +34,7 @@ export interface Debate {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   pinnedBy?: string[]; // 핀한 사용자 ID 목록
-  bannedUsers?: BannedUser[]; // 강제퇴장된 사용자 목록 (userId, userName 포함)
+  bannedUsers?: (string | BannedUser)[]; // 강제퇴장된 사용자 목록 (하위 호환성: string 또는 BannedUser 객체)
 }
 
 // 토론 메시지 인터페이스

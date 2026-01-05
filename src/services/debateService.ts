@@ -489,8 +489,10 @@ export async function joinDebate(debateId: string, side: DebateSide): Promise<{ 
       return { success: false, error: '토론방을 찾을 수 없습니다.' };
     }
 
-    // 강제퇴장 당한 사용자인지 확인
-    if (debate.bannedUsers && debate.bannedUsers.some(banned => banned.userId === user.uid)) {
+    // 강제퇴장 당한 사용자인지 확인 (하위 호환성: string과 BannedUser 객체 둘 다 처리)
+    if (debate.bannedUsers && debate.bannedUsers.some(banned =>
+      typeof banned === 'string' ? banned === user.uid : banned.userId === user.uid
+    )) {
       return { success: false, error: '강제퇴장되었습니다. 방장에게 문의하세요.' };
     }
 
@@ -740,10 +742,11 @@ export async function unbanParticipant(debateId: string, userId: string): Promis
       return { success: false, error: '방장만 강제퇴장을 해제할 수 있습니다.' };
     }
 
-    // 강제퇴장 목록에서 제거
-    // bannedUsers가 객체 배열이므로 해당 userId를 가진 객체를 찾아서 제거
+    // 강제퇴장 목록에서 제거 (하위 호환성: string과 BannedUser 객체 둘 다 처리)
     if (debate.bannedUsers) {
-      const bannedUser = debate.bannedUsers.find(banned => banned.userId === userId);
+      const bannedUser = debate.bannedUsers.find(banned =>
+        typeof banned === 'string' ? banned === userId : banned.userId === userId
+      );
       if (bannedUser) {
         await updateDoc(doc(db, DEBATES_COLLECTION, debateId), {
           bannedUsers: arrayRemove(bannedUser)
