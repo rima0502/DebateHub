@@ -711,7 +711,7 @@ export async function kickParticipant(debateId: string, userId: string): Promise
       bannedUsers: arrayUnion({
         userId,
         userName,
-        bannedAt: serverTimestamp()
+        bannedAt: Timestamp.now()
       })
     });
 
