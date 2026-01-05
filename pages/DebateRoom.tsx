@@ -134,6 +134,14 @@ export default function DebateRoom() {
       handleScroll();
       return () => scrollElement.removeEventListener('scroll', handleScroll);
     }
+  }, []);
+
+  // 메시지 변경 시 스크롤 버튼 상태 업데이트
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    const scrolledFromBottom = scrollHeight - scrollTop - clientHeight;
+    setShowScrollButton(scrolledFromBottom > 100);
   }, [messages]);
 
   // 자동 스크롤 (새 메시지가 추가되면 맨 아래로 - 사용자가 위로 스크롤하지 않았을 때만)
