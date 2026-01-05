@@ -8,7 +8,7 @@ export default defineConfig({
   base: './', // GitHub Pages 배포 시 상대 경로 문제 해결을 위해 추가
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: process.env.NODE_ENV !== 'production' // 프로덕션에서는 소스맵 비활성화
   },
   server: {
     port: 3000,

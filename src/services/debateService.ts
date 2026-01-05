@@ -47,9 +47,26 @@ export async function createDebate(input: CreateDebateInput): Promise<{ success:
       return { success: false, error: '로그인이 필요합니다.' };
     }
 
+    // 입력 검증
+    const title = input.title?.trim();
+    const description = input.description?.trim();
+
+    if (!title || title.length === 0) {
+      return { success: false, error: '제목을 입력해주세요.' };
+    }
+    if (title.length > 200) {
+      return { success: false, error: '제목은 200자를 초과할 수 없습니다.' };
+    }
+    if (!description || description.length === 0) {
+      return { success: false, error: '설명을 입력해주세요.' };
+    }
+    if (description.length > 2000) {
+      return { success: false, error: '설명은 2000자를 초과할 수 없습니다.' };
+    }
+
     const debateData = {
-      title: input.title,
-      description: input.description,
+      title,
+      description,
       category: input.category,
       creatorId: user.uid,
       creatorName: user.displayName || '익명',
@@ -121,8 +138,11 @@ export async function getDebates(category?: DebateCategory | '전체', limitCoun
 }
 
 /**
- * 토론방 실시간 구독
+ * 토론방 실시간 구독 (스로틀링 적용)
  */
+let debatesThrottleTimer: NodeJS.Timeout | null = null;
+const DEBATES_THROTTLE_MS = 1000; // 1초마다 최대 1회 업데이트
+
 export function subscribeToDebates(
   callback: (debates: Debate[]) => void,
   category?: DebateCategory | '전체'
@@ -130,7 +150,7 @@ export function subscribeToDebates(
   const constraints: QueryConstraint[] = [
     where('status', '==', 'active'),
     orderBy('updatedAt', 'desc'),
-    limit(20)
+    limit(10) // 20개에서 10개로 감소
   ];
 
   if (category && category !== '전체') {
@@ -140,11 +160,19 @@ export function subscribeToDebates(
   const q = query(collection(db, DEBATES_COLLECTION), ...constraints);
 
   return onSnapshot(q, (snapshot) => {
-    const debates = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Debate[];
-    callback(debates);
+    // 스로틀링: 너무 빈번한 업데이트 방지
+    if (debatesThrottleTimer) {
+      clearTimeout(debatesThrottleTimer);
+    }
+
+    debatesThrottleTimer = setTimeout(() => {
+      const debates = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Debate[];
+      callback(debates);
+      debatesThrottleTimer = null;
+    }, DEBATES_THROTTLE_MS);
   });
 }
 
@@ -177,6 +205,11 @@ export async function deleteDebate(debateId: string): Promise<{ success: boolean
 
 // ==================== 메시지 관련 ====================
 
+// 메시지 전송 레이트 리밋 추적
+const messageRateLimits = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW = 60000; // 1분
+const MAX_MESSAGES_PER_WINDOW = 10; // 1분에 10개 메시지 제한
+
 /**
  * 메시지 전송
  */
@@ -187,12 +220,33 @@ export async function sendMessage(input: CreateMessageInput): Promise<{ success:
       return { success: false, error: '로그인이 필요합니다.' };
     }
 
+    // 입력 검증
+    const content = input.content?.trim();
+    if (!content || content.length === 0) {
+      return { success: false, error: '메시지 내용을 입력해주세요.' };
+    }
+    if (content.length > 5000) {
+      return { success: false, error: '메시지는 5000자를 초과할 수 없습니다.' };
+    }
+
+    // 레이트 리밋 체크
+    const now = Date.now();
+    const userTimestamps = messageRateLimits.get(user.uid) || [];
+    const recentTimestamps = userTimestamps.filter(ts => now - ts < RATE_LIMIT_WINDOW);
+
+    if (recentTimestamps.length >= MAX_MESSAGES_PER_WINDOW) {
+      return { success: false, error: '메시지를 너무 빠르게 전송하고 있습니다. 잠시 후 다시 시도해주세요.' };
+    }
+
+    recentTimestamps.push(now);
+    messageRateLimits.set(user.uid, recentTimestamps);
+
     const messageData: any = {
       debateId: input.debateId,
       userId: user.uid,
       userName: user.displayName || '익명',
       userAvatar: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-      content: input.content,
+      content,
       side: input.side,
       likes: 0,
       likedBy: [],
@@ -272,8 +326,11 @@ export async function getMessages(debateId: string, limitCount: number = 100): P
 }
 
 /**
- * 메시지 실시간 구독
+ * 메시지 실시간 구독 (스로틀링 적용)
  */
+let messagesThrottleTimer: NodeJS.Timeout | null = null;
+const MESSAGES_THROTTLE_MS = 500; // 0.5초마다 최대 1회 업데이트
+
 export function subscribeToMessages(
   debateId: string,
   callback: (messages: DebateMessage[]) => void
@@ -281,15 +338,24 @@ export function subscribeToMessages(
   const q = query(
     collection(db, MESSAGES_COLLECTION),
     where('debateId', '==', debateId),
-    orderBy('createdAt', 'asc')
+    orderBy('createdAt', 'asc'),
+    limit(100) // 최대 100개 메시지만 로드
   );
 
   return onSnapshot(q, (snapshot) => {
-    const messages = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as DebateMessage[];
-    callback(messages);
+    // 스로틀링: 빠른 연속 메시지 전송 시 렌더링 부담 감소
+    if (messagesThrottleTimer) {
+      clearTimeout(messagesThrottleTimer);
+    }
+
+    messagesThrottleTimer = setTimeout(() => {
+      const messages = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as DebateMessage[];
+      callback(messages);
+      messagesThrottleTimer = null;
+    }, MESSAGES_THROTTLE_MS);
   });
 }
 
@@ -426,8 +492,11 @@ export async function getParticipants(debateId: string): Promise<DebateParticipa
 }
 
 /**
- * 참여자 실시간 구독
+ * 참여자 실시간 구독 (스로틀링 적용)
  */
+let participantsThrottleTimer: NodeJS.Timeout | null = null;
+const PARTICIPANTS_THROTTLE_MS = 2000; // 2초마다 최대 1회 업데이트
+
 export function subscribeToParticipants(
   debateId: string,
   callback: (participants: DebateParticipant[]) => void
@@ -435,15 +504,24 @@ export function subscribeToParticipants(
   const q = query(
     collection(db, PARTICIPANTS_COLLECTION),
     where('debateId', '==', debateId),
-    orderBy('joinedAt', 'asc')
+    orderBy('joinedAt', 'asc'),
+    limit(50) // 최대 50명 참여자만 표시
   );
 
   return onSnapshot(q, (snapshot) => {
-    const participants = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as DebateParticipant[];
-    callback(participants);
+    // 스로틀링: 참여자 변경은 자주 일어나지 않으므로 2초 간격
+    if (participantsThrottleTimer) {
+      clearTimeout(participantsThrottleTimer);
+    }
+
+    participantsThrottleTimer = setTimeout(() => {
+      const participants = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as DebateParticipant[];
+      callback(participants);
+      participantsThrottleTimer = null;
+    }, PARTICIPANTS_THROTTLE_MS);
   });
 }
 

@@ -50,7 +50,6 @@ export function useDebateRoom(debateId: string) {
   // 참여자 실시간 구독
   useEffect(() => {
     const unsubscribe = subscribeToParticipants(debateId, (updatedParticipants) => {
-      console.log('📋 참여자 데이터:', updatedParticipants);
       setParticipants(updatedParticipants);
     });
 
