@@ -28,6 +28,7 @@ import type {
   DebateCategory,
   DebateSide
 } from '../types/debate';
+import { createReplyNotification, createLikeNotification } from './notificationService';
 
 // Firestore 컬렉션 이름
 const DEBATES_COLLECTION = 'debates';
@@ -94,7 +95,7 @@ export async function getDebate(debateId: string): Promise<Debate | null> {
 /**
  * 토론방 목록 가져오기 (카테고리별 필터링 가능)
  */
-export async function getDebates(category?: DebateCategory, limitCount: number = 20): Promise<Debate[]> {
+export async function getDebates(category?: DebateCategory | '전체', limitCount: number = 20): Promise<Debate[]> {
   try {
     const constraints: QueryConstraint[] = [
       where('status', '==', 'active'),
@@ -124,7 +125,7 @@ export async function getDebates(category?: DebateCategory, limitCount: number =
  */
 export function subscribeToDebates(
   callback: (debates: Debate[]) => void,
-  category?: DebateCategory
+  category?: DebateCategory | '전체'
 ): () => void {
   const constraints: QueryConstraint[] = [
     where('status', '==', 'active'),
@@ -179,7 +180,7 @@ export async function deleteDebate(debateId: string): Promise<{ success: boolean
 /**
  * 메시지 전송
  */
-export async function sendMessage(input: CreateMessageInput): Promise<{ success: boolean; error?: string }> {
+export async function sendMessage(input: CreateMessageInput): Promise<{ success: boolean; error?: string; messageId?: string }> {
   try {
     const user = auth.currentUser;
     if (!user) {
@@ -203,7 +204,7 @@ export async function sendMessage(input: CreateMessageInput): Promise<{ success:
       messageData.replyTo = input.replyTo;
     }
 
-    await addDoc(collection(db, MESSAGES_COLLECTION), messageData);
+    const messageRef = await addDoc(collection(db, MESSAGES_COLLECTION), messageData);
 
     // 토론방의 메시지 카운트 증가 및 업데이트 시간 갱신
     await updateDoc(doc(db, DEBATES_COLLECTION, input.debateId), {
@@ -211,7 +212,36 @@ export async function sendMessage(input: CreateMessageInput): Promise<{ success:
       updatedAt: serverTimestamp()
     });
 
-    return { success: true };
+    // 답글인 경우 알림 생성
+    if (input.replyTo) {
+      // 원본 메시지 ID로 직접 가져오기
+      const originalMessageRef = doc(db, MESSAGES_COLLECTION, input.replyTo);
+      const originalMessageSnap = await getDoc(originalMessageRef);
+
+      if (originalMessageSnap.exists()) {
+        const originalMessage = originalMessageSnap.data() as DebateMessage;
+        const targetUserId = originalMessage.userId;
+
+        // 토론방 정보 가져오기
+        const debate = await getDebate(input.debateId);
+
+        if (debate && targetUserId !== user.uid) {
+          await createReplyNotification(
+            targetUserId,
+            user.uid,
+            user.displayName || '익명',
+            user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+            input.debateId,
+            debate.title,
+            messageRef.id,
+            input.content,
+            debate.category
+          );
+        }
+      }
+    }
+
+    return { success: true, messageId: messageRef.id };
   } catch (error: any) {
     console.error('메시지 전송 오류:', error);
     return { success: false, error: error.message };
@@ -251,8 +281,7 @@ export function subscribeToMessages(
   const q = query(
     collection(db, MESSAGES_COLLECTION),
     where('debateId', '==', debateId),
-    orderBy('createdAt', 'asc'),
-    limit(100)
+    orderBy('createdAt', 'asc')
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -281,7 +310,8 @@ export async function toggleMessageLike(messageId: string): Promise<{ success: b
       return { success: false, error: '메시지를 찾을 수 없습니다.' };
     }
 
-    const likedBy = messageSnap.data().likedBy || [];
+    const messageData = messageSnap.data() as DebateMessage;
+    const likedBy = messageData.likedBy || [];
     const isLiked = likedBy.includes(user.uid);
 
     if (isLiked) {
@@ -296,6 +326,24 @@ export async function toggleMessageLike(messageId: string): Promise<{ success: b
         likes: increment(1),
         likedBy: arrayUnion(user.uid)
       });
+
+      // 좋아요 알림 생성 (자기 자신이 아닐 경우에만)
+      if (messageData.userId !== user.uid) {
+        const debate = await getDebate(messageData.debateId);
+        if (debate) {
+          await createLikeNotification(
+            messageData.userId,
+            user.uid,
+            user.displayName || '익명',
+            user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+            messageData.debateId,
+            debate.title,
+            messageId,
+            messageData.content,
+            debate.category
+          );
+        }
+      }
     }
 
     return { success: true };

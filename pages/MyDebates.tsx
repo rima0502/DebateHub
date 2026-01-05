@@ -44,7 +44,7 @@ export default function MyDebates() {
       }
 
       try {
-        // orderBy를 제거하고 클라이언트에서 정렬 (Firestore 복합 인덱스 불필요)
+        // 내가 개설한 토론방만 표시
         const q = query(
           collection(db, 'debates'),
           where('creatorId', '==', user.uid)
@@ -60,7 +60,7 @@ export default function MyDebates() {
         myDebates.sort((a, b) => {
           const aTime = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0;
           const bTime = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0;
-          return bTime - aTime; // 내림차순 (최신순)
+          return bTime - aTime;
         });
 
         setDebates(myDebates);

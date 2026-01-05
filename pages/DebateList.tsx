@@ -1,15 +1,15 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useDebates } from '../src/hooks/useDebates';
+import type { Debate as FirestoreDebate, DebateCategory } from '../src/types/debate';
+import { Timestamp } from 'firebase/firestore';
 
 const CATEGORY_THEMES: Record<string, { color: string; bg: string; text: string; ring: string }> = {
   '전체': { color: 'bg-primary', bg: 'bg-primary/10', text: 'text-primary', ring: 'shadow-[0_0_20px_rgba(19,127,236,0.3)]' },
   '정치/사회': { color: 'bg-cat_politics', bg: 'bg-cat_politics/10', text: 'text-cat_politics', ring: 'shadow-[0_0_20px_rgba(244,63,94,0.3)]' },
-  '정치': { color: 'bg-cat_politics', bg: 'bg-cat_politics/10', text: 'text-cat_politics', ring: 'shadow-[0_0_20px_rgba(244,63,94,0.3)]' },
-  '사회': { color: 'bg-cat_politics', bg: 'bg-cat_politics/10', text: 'text-cat_politics', ring: 'shadow-[0_0_20px_rgba(244,63,94,0.3)]' },
   '경제': { color: 'bg-cat_economy', bg: 'bg-cat_economy/10', text: 'text-cat_economy', ring: 'shadow-[0_0_20px_rgba(245,158,11,0.3)]' },
   '기술': { color: 'bg-cat_tech', bg: 'bg-cat_tech/10', text: 'text-cat_tech', ring: 'shadow-[0_0_20px_rgba(14,165,233,0.3)]' },
-  '과학': { color: 'bg-cat_tech', bg: 'bg-cat_tech/10', text: 'text-cat_tech', ring: 'shadow-[0_0_20px_rgba(14,165,233,0.3)]' },
   '윤리': { color: 'bg-cat_ethics', bg: 'bg-cat_ethics/10', text: 'text-cat_ethics', ring: 'shadow-[0_0_20px_rgba(168,85,247,0.3)]' },
   '환경': { color: 'bg-cat_env', bg: 'bg-cat_env/10', text: 'text-cat_env', ring: 'shadow-[0_0_20px_rgba(16,185,129,0.3)]' },
   '교육': { color: 'bg-cat_edu', bg: 'bg-cat_edu/10', text: 'text-cat_edu', ring: 'shadow-[0_0_20px_rgba(99,102,241,0.3)]' },
@@ -33,122 +33,72 @@ const SORT_OPTIONS: { id: SortOption; label: string; icon: string }[] = [
   { id: 'MESSAGES', label: '의견많은순', icon: 'forum' },
 ];
 
-const MOCK_ALL_DEBATES = [
-  { 
-    id: '1', 
-    title: '보편적 기본소득: 필수인가, 재정 파탄인가?', 
-    category: '경제', 
-    desc: 'AI 시대의 새로운 복지 모델인 기본소득 도입의 실효성과 재정적 지속 가능성에 대해 논의합니다.',
-    participants: '1.5k', 
-    messages: '342', 
-    status: 'HOT', 
-    time: '2시간 전', 
-    timestamp: 2,
-    image: 'https://picsum.photos/seed/ubidebate/200/200'
-  },
-  { 
-    id: '2', 
-    title: '원격 근무의 제도화: 생산성 향상 vs 조직 문화 붕괴', 
-    category: '사회', 
-    desc: '포스트 코로나 시대, 재택근무가 표준이 될 수 있을까요? 기업 문화와 생산성 사이의 균형을 토론합니다.',
-    participants: '856', 
-    messages: '128', 
-    status: 'HOT', 
-    time: '10분 전', 
-    timestamp: 0.16,
-    image: 'https://picsum.photos/seed/remotework/200/200'
-  },
-  { 
-    id: '3', 
-    title: '우주 탐사 예산 증액: 인류의 도약인가, 자원 낭비인가?', 
-    category: '과학', 
-    desc: '화성 탐사와 민간 우주 비행 시대, 지구 내부의 문제를 먼저 해결해야 할까요? 아니면 밖으로 나아가야 할까요?',
-    participants: '2.1k', 
-    messages: '890', 
-    status: 'NORMAL', 
-    time: '방금 전', 
-    timestamp: 0.01 
-  },
-  { 
-    id: '4', 
-    title: '청년 병역 의무화 제도 개편 논의', 
-    category: '정치', 
-    desc: '인구 절벽 시대, 모병제 전환과 여성 징집 등 군 복무 제도의 근본적인 변화에 대해 다룹니다.',
-    participants: '4.2k', 
-    messages: '1.2k', 
-    status: 'HOT', 
-    time: '5시간 전', 
-    timestamp: 5,
-    image: 'https://picsum.photos/seed/military/200/200'
-  },
-  { 
-    id: '5', 
-    title: '채식 주의 급식 확대, 선택인가 강요인가?', 
-    category: '교육', 
-    desc: '학교 급식 내 채식 선택권 보장이 성장기 학생들의 건강과 신념 사이에서 어떤 위치를 가져야 할까요?',
-    participants: '500', 
-    messages: '92', 
-    status: 'NORMAL', 
-    time: '1일 전', 
-    timestamp: 24 
-  },
-  { 
-    id: '6', 
-    title: '일회용 컵 보증금제 실효성 논란', 
-    category: '환경', 
-    desc: '환경 보호를 위한 보증금제가 소상공인과 소비자에게 미치는 영향과 실제 폐기물 저감 효과를 분석합니다.',
-    participants: '1.1k', 
-    messages: '210', 
-    status: 'NORMAL', 
-    time: '3시간 전', 
-    timestamp: 3,
-    image: 'https://picsum.photos/seed/ecocup/200/200'
-  },
-];
+const formatTimestamp = (timestamp: Timestamp) => {
+  const now = Date.now();
+  const debateTime = timestamp.toMillis();
+  const diff = now - debateTime;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
 
-const parseCount = (str: string): number => {
-  if (str.endsWith('k')) return parseFloat(str) * 1000;
-  return parseInt(str);
+  if (minutes < 1) return '방금 전';
+  if (minutes < 60) return `${minutes}분 전`;
+  if (hours < 24) return `${hours}시간 전`;
+  return `${days}일 전`;
+};
+
+interface DisplayDebate {
+  id: string;
+  title: string;
+  category: string;
+  desc: string;
+  participants: number;
+  messages: number;
+  time: string;
+  timestamp: number;
+  image?: string;
+}
+
+const formatDebateForDisplay = (debate: FirestoreDebate): DisplayDebate => {
+  return {
+    id: debate.id,
+    title: debate.title,
+    category: debate.category,
+    desc: debate.description,
+    participants: debate.participantCount || 0,
+    messages: debate.messageCount || 0,
+    time: formatTimestamp(debate.updatedAt as Timestamp),
+    timestamp: (debate.updatedAt as Timestamp).toMillis(),
+    image: debate.imageUrl
+  };
 };
 
 export default function DebateList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('전체');
-  const [activeSort, setActiveSort] = useState<SortOption>('LATEST');
-  const [isSorting, setIsSorting] = useState(false);
-  const [userDebates, setUserDebates] = useState<any[]>([]);
-
-  useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('user_debates') || '[]');
-    setUserDebates(saved);
-  }, []);
-
-  useEffect(() => {
-    setIsSorting(true);
-    const timer = setTimeout(() => setIsSorting(false), 400);
-    return () => clearTimeout(timer);
-  }, [activeSort, activeCategory]);
+  const [activeSort, setActiveSort] = useState<SortOption>('PARTICIPANTS');
+  const { debates: firestoreDebates, loading } = useDebates(activeCategory === '전체' ? undefined : activeCategory as DebateCategory);
 
   const combinedDebates = useMemo(() => {
-    return [...userDebates, ...MOCK_ALL_DEBATES];
-  }, [userDebates]);
+    if (loading) return [];
+    return firestoreDebates.map(formatDebateForDisplay);
+  }, [firestoreDebates, loading]);
 
   const filteredAndSortedDebates = useMemo(() => {
     let result = combinedDebates.filter(debate => {
       const matchesSearch = debate.title.toLowerCase().includes(searchTerm.toLowerCase()) || (debate.desc && debate.desc.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesCategory = activeCategory === '전체' || debate.category === activeCategory.split('/')[0] || debate.category === activeCategory;
-      return matchesSearch && matchesCategory;
+      return matchesSearch;
     });
 
     result.sort((a, b) => {
-      if (activeSort === 'LATEST') return a.timestamp - b.timestamp;
-      if (activeSort === 'PARTICIPANTS') return parseCount(b.participants) - parseCount(a.participants);
-      if (activeSort === 'MESSAGES') return parseCount(b.messages) - parseCount(a.messages);
+      if (activeSort === 'LATEST') return b.timestamp - a.timestamp;
+      if (activeSort === 'PARTICIPANTS') return b.participants - a.participants;
+      if (activeSort === 'MESSAGES') return b.messages - a.messages;
       return 0;
     });
 
     return result;
-  }, [searchTerm, activeCategory, activeSort, combinedDebates]);
+  }, [searchTerm, activeSort, combinedDebates]);
 
   return (
     <div className="min-h-screen bg-[#0b0f14] py-12 px-4">
@@ -218,8 +168,15 @@ export default function DebateList() {
           </div>
         </header>
 
-        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 transition-all duration-500 ${isSorting ? 'opacity-40 translate-y-2' : 'opacity-100 translate-y-0'}`}>
-          {filteredAndSortedDebates.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          {loading ? (
+            <div className="col-span-full flex items-center justify-center py-20">
+              <div className="flex flex-col items-center gap-4">
+                <div className="size-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-slate-400 text-sm font-medium">토론방 불러오는 중...</p>
+              </div>
+            </div>
+          ) : filteredAndSortedDebates.length > 0 ? (
             filteredAndSortedDebates.map(debate => {
               const theme = CATEGORY_THEMES[debate.category] || CATEGORY_THEMES['전체'];
               const themeName = theme.text.split('-')[1]; // politics, economy, tech etc

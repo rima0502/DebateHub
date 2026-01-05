@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDebateRoom } from '../src/hooks/useDebateRoom';
 import { useAuth } from '../src/hooks/useAuth';
 import { updateParticipantActivity } from '../src/services/debateService';
@@ -51,15 +51,17 @@ const isUserActive = (lastActiveAt: Timestamp | Date | null | undefined): boolea
 export default function DebateRoom() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { debate, messages, participants, loading, sendMessage, joinDebate, toggleMessageLike } = useDebateRoom(id || '');
 
   const [input, setInput] = useState('');
   const [userSide, setUserSide] = useState<DebateSide | null>(null);
-  const [replyTarget, setReplyTarget] = useState<string | null>(null);
-  const [likedMessages, setLikedMessages] = useState<Set<string>>(new Set());
+  const [replyTarget, setReplyTarget] = useState<{ messageId: string; content: string; userName: string } | null>(null);
   const [activeParticipantId, setActiveParticipantId] = useState<string | null>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isAutoScrolling = useRef(false);
 
   // 사용자가 이미 참여했는지 확인
   useEffect(() => {
@@ -74,10 +76,11 @@ export default function DebateRoom() {
     }
   }, [user, id, participants]);
 
-  // 최근 방문 목록에 추가
+  // 최근 방문 목록에 추가 (사용자별로 저장)
   useEffect(() => {
-    if (debate && id) {
-      const recentVisits = JSON.parse(localStorage.getItem('recent_visits') || '[]');
+    if (debate && id && user) {
+      const userKey = user.uid;
+      const recentVisits = JSON.parse(localStorage.getItem(`recent_visits_${userKey}`) || '[]');
       const newVisit = {
         id,
         title: debate.title.length > 20 ? debate.title.substring(0, 20) + '...' : debate.title,
@@ -88,20 +91,57 @@ export default function DebateRoom() {
       const filteredVisits = recentVisits.filter((v: any) => v.id !== id);
       const updatedVisits = [newVisit, ...filteredVisits].slice(0, 10);
 
-      localStorage.setItem('recent_visits', JSON.stringify(updatedVisits));
+      localStorage.setItem(`recent_visits_${userKey}`, JSON.stringify(updatedVisits));
     }
-  }, [debate, id]);
+  }, [debate, id, user]);
 
   const theme = debate ? CATEGORY_THEMES[debate.category] || CATEGORY_THEMES['전체'] : CATEGORY_THEMES['전체'];
 
+  // 스크롤 위치 감지
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
+    const handleScroll = () => {
+      if (!scrollRef.current) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const scrolledFromBottom = scrollHeight - scrollTop - clientHeight;
+
+      // 100px 이상 위로 스크롤하면 버튼 표시
+      setShowScrollButton(scrolledFromBottom > 3000);
+    };
+
+    const scrollElement = scrollRef.current;
+    if (scrollElement) {
+      scrollElement.addEventListener('scroll', handleScroll);
+      // 초기 상태 확인
+      handleScroll();
+      return () => scrollElement.removeEventListener('scroll', handleScroll);
     }
   }, [messages]);
+
+  // 자동 스크롤 (새 메시지가 추가되면 맨 아래로 - 사용자가 위로 스크롤하지 않았을 때만)
+  useEffect(() => {
+    if (scrollRef.current && messages.length > 0) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+
+      // 맨 아래 근처에 있을 때만 자동 스크롤
+      if (isNearBottom) {
+        isAutoScrolling.current = true;
+        setTimeout(() => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTo({
+              top: scrollRef.current.scrollHeight,
+              behavior: 'smooth'
+            });
+          }
+          setTimeout(() => {
+            isAutoScrolling.current = false;
+          }, 500);
+        }, 100);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
 
   // 30초마다 활동 상태 업데이트 (heartbeat)
   useEffect(() => {
@@ -120,6 +160,34 @@ export default function DebateRoom() {
     return () => clearInterval(interval);
   }, [user, id]);
 
+  // URL 파라미터에서 highlight 메시지 ID를 읽고 해당 메시지로 스크롤 & 하이라이트
+  useEffect(() => {
+    const highlightId = searchParams.get('highlight');
+    if (highlightId && messages.length > 0) {
+      // 약간의 지연을 주어 DOM이 완전히 렌더링되도록 함
+      setTimeout(() => {
+        const element = document.getElementById(`msg-${highlightId}`);
+        if (element) {
+          // 스크롤하여 해당 메시지를 중앙에 표시
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+          // 하이라이트 효과 (반짝임)
+          element.classList.add('animate-pulse', 'ring-4', 'ring-primary', 'ring-offset-2', 'ring-offset-[#0b0f14]', 'bg-primary/20');
+
+          // 2초 후 효과 제거 및 URL 파라미터 제거
+          setTimeout(() => {
+            element.classList.remove('animate-pulse', 'ring-4', 'ring-primary', 'ring-offset-2', 'ring-offset-[#0b0f14]', 'bg-primary/20');
+
+            // URL에서 highlight 파라미터 제거 (한 번만 실행되도록)
+            const url = new URL(window.location.href);
+            url.searchParams.delete('highlight');
+            window.history.replaceState({}, '', url.pathname);
+          }, 2000);
+        }
+      }, 500);
+    }
+  }, [searchParams, messages.length]);
+
   const handleSend = async () => {
     // 찬성/반대를 선택하지 않았으면 메시지 전송 불가 (NEUTRAL도 불가)
     if (!input.trim() || !user || !id || !userSide || userSide === 'NEUTRAL') return;
@@ -137,14 +205,25 @@ export default function DebateRoom() {
         side: userSide
       };
 
-      // replyTo가 있을 때만 추가 (undefined 방지)
+      // replyTo가 있을 때만 추가 (메시지 ID 저장)
       if (replyTarget) {
-        messageData.replyTo = replyTarget;
+        messageData.replyTo = replyTarget.messageId;
       }
 
       await sendMessage(messageData);
       setInput('');
       setReplyTarget(null);
+
+      // 메시지 전송 후 맨 아래로 스크롤
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTo({
+            top: scrollRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+          setShowScrollButton(false);
+        }
+      }, 100);
     } catch (error) {
       console.error('메시지 전송 실패:', error);
     }
@@ -153,23 +232,42 @@ export default function DebateRoom() {
   const toggleLike = async (msgId: string) => {
     if (!user) return;
 
-    // 먼저 로컬 상태 업데이트 (UI 즉시 반영)
-    setLikedMessages(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(msgId)) {
-        newSet.delete(msgId);
-      } else {
-        newSet.add(msgId);
-      }
-      return newSet;
-    });
+    // 현재 스크롤 위치 저장
+    const currentScrollTop = scrollRef.current?.scrollTop || 0;
+
+    // 자동 스크롤 방지
+    isAutoScrolling.current = true;
 
     // Firestore에 좋아요 저장
     await toggleMessageLike(msgId);
+
+    // 스크롤 위치 복원
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = currentScrollTop;
+      }
+      setTimeout(() => {
+        isAutoScrolling.current = false;
+      }, 100);
+    });
   };
 
-  const startReply = (username: string) => {
-    setReplyTarget(username);
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      isAutoScrolling.current = true;
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+      setShowScrollButton(false);
+      setTimeout(() => {
+        isAutoScrolling.current = false;
+      }, 500);
+    }
+  };
+
+  const startReply = (messageId: string, content: string, userName: string) => {
+    setReplyTarget({ messageId, content, userName });
     const textarea = document.getElementById('chat-input');
     textarea?.focus();
   };
@@ -206,76 +304,103 @@ export default function DebateRoom() {
           </div>
         </div>
 
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto pr-2 space-y-6 mb-6 no-scrollbar scroll-smooth"
-        >
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <span className="material-symbols-outlined text-6xl text-slate-700 mb-4">chat_bubble_outline</span>
-              <p className="text-slate-500 text-sm font-medium">아직 메시지가 없습니다</p>
-              <p className="text-slate-600 text-xs mt-2">첫 번째 의견을 남겨보세요!</p>
-            </div>
-          ) : (
-            messages.map((msg) => (
-              <div key={msg.id} className="flex gap-4 group animate-in fade-in slide-in-from-bottom-2">
-                <div className="shrink-0 pt-1">
-                  <div className={`size-10 rounded-full p-0.5 border-2 ${
-                    msg.side === 'PRO' ? 'border-primary' : msg.side === 'CON' ? 'border-secondary' : 'border-purple-500'
-                  }`}>
-                    <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-sm">
-                      {msg.userName?.charAt(0) || 'U'}
+        <div className="relative flex-1 mb-6 overflow-hidden">
+          <div
+            ref={scrollRef}
+            className="h-full overflow-y-auto pr-2 space-y-6 no-scrollbar scroll-smooth"
+            style={{ height: '100%' }}
+          >
+            {messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <span className="material-symbols-outlined text-6xl text-slate-700 mb-4">chat_bubble_outline</span>
+                <p className="text-slate-500 text-sm font-medium">아직 메시지가 없습니다</p>
+                <p className="text-slate-600 text-xs mt-2">첫 번째 의견을 남겨보세요!</p>
+              </div>
+            ) : (
+              messages.map((msg) => (
+                <div key={msg.id} id={`msg-${msg.id}`} className="flex gap-4 group animate-in fade-in slide-in-from-bottom-2 transition-all duration-300">
+                  <div className="shrink-0 pt-1">
+                    <div className={`size-10 rounded-full p-0.5 border-2 ${msg.side === 'PRO' ? 'border-primary' : msg.side === 'CON' ? 'border-secondary' : 'border-purple-500'
+                      }`}>
+                      <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-sm">
+                        {msg.userName?.charAt(0) || 'U'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2 mb-1.5">
+                      <span className="font-bold text-sm text-white">{msg.userName || '익명'}</span>
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${msg.side === 'PRO' ? 'bg-primary/10 text-primary border-primary/20' :
+                        msg.side === 'CON' ? 'bg-secondary/10 text-secondary border-secondary/20' :
+                          'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                        }`}>
+                        {msg.side === 'PRO' ? '찬성' : msg.side === 'CON' ? '반대' : '중립'}
+                      </span>
+                      <span className="text-slate-600 text-[10px] font-medium">
+                        {formatTimestamp(msg.createdAt as Timestamp)}
+                      </span>
+                    </div>
+                    <div className="relative bg-[#1c2127] border border-slate-800 rounded-2xl rounded-tl-none p-4 shadow-sm hover:border-slate-700 transition-colors">
+                      {msg.replyTo && (() => {
+                        const originalMsg = messages.find(m => m.id === msg.replyTo);
+                        return originalMsg ? (
+                          <div
+                            onClick={() => {
+                              const element = document.getElementById(`msg-${msg.replyTo}`);
+                              element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              element?.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-[#0b0f14]');
+                              setTimeout(() => {
+                                element?.classList.remove('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-[#0b0f14]');
+                              }, 2000);
+                            }}
+                            className="flex items-start gap-2 mb-2 px-3 py-1.5 bg-[#0b0f14]/50 rounded-lg border-l-2 border-primary/50 text-slate-400 text-xs font-medium cursor-pointer hover:bg-[#0b0f14]/80 transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[14px] mt-0.5">reply</span>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-primary text-[10px]">{originalMsg.userName}님의 의견</span>
+                              <span className="line-clamp-1">"{originalMsg.content.substring(0, 40)}{originalMsg.content.length > 40 ? '...' : ''}"</span>
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+                      <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+                    <div className="flex items-center gap-5 mt-2 ml-1">
+                      <button
+                        onClick={() => toggleLike(msg.id)}
+                        className={`group/btn flex items-center gap-1.5 transition-colors ${msg.likedBy?.includes(user?.uid || '') ? 'text-primary' : 'text-slate-500 hover:text-primary'
+                          }`}
+                      >
+                        <span className={`material-symbols-outlined text-[18px] transition-transform ${msg.likedBy?.includes(user?.uid || '') ? 'fill-1' : 'group-active/btn:scale-125'
+                          }`}>
+                          thumb_up
+                        </span>
+                        <span className="text-[11px] font-bold">{msg.likes || 0}</span>
+                      </button>
+                      <button
+                        onClick={() => startReply(msg.id, msg.content, msg.userName || '익명')}
+                        className="flex items-center gap-1.5 text-slate-500 hover:text-white transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">chat_bubble_outline</span>
+                        <span className="text-[11px] font-bold">답글 달기</span>
+                      </button>
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col flex-1 min-w-0">
-                  <div className="flex items-baseline gap-2 mb-1.5">
-                    <span className="font-bold text-sm text-white">{msg.userName || '익명'}</span>
-                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${
-                      msg.side === 'PRO' ? 'bg-primary/10 text-primary border-primary/20' :
-                      msg.side === 'CON' ? 'bg-secondary/10 text-secondary border-secondary/20' :
-                      'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                    }`}>
-                      {msg.side === 'PRO' ? '찬성' : msg.side === 'CON' ? '반대' : '중립'}
-                    </span>
-                    <span className="text-slate-600 text-[10px] font-medium">
-                      {formatTimestamp(msg.createdAt as Timestamp)}
-                    </span>
-                  </div>
-                  <div className="relative bg-[#1c2127] border border-slate-800 rounded-2xl rounded-tl-none p-4 shadow-sm hover:border-slate-700 transition-colors">
-                    {msg.replyTo && (
-                      <div className="flex items-center gap-2 mb-2 px-3 py-1.5 bg-[#0b0f14]/50 rounded-lg border-l-2 border-primary/50 text-slate-400 text-xs font-medium">
-                        <span className="material-symbols-outlined text-[14px]">reply</span>
-                        <span>@{msg.replyTo}님에게 보내는 의견</span>
-                      </div>
-                    )}
-                    <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                  </div>
-                  <div className="flex items-center gap-5 mt-2 ml-1">
-                    <button
-                      onClick={() => toggleLike(msg.id)}
-                      className={`group/btn flex items-center gap-1.5 transition-colors ${
-                        likedMessages.has(msg.id) ? 'text-primary' : 'text-slate-500 hover:text-primary'
-                      }`}
-                    >
-                      <span className={`material-symbols-outlined text-[18px] transition-transform ${
-                        likedMessages.has(msg.id) ? 'fill-1' : 'group-active/btn:scale-125'
-                      }`}>
-                        thumb_up
-                      </span>
-                      <span className="text-[11px] font-bold">{msg.likes || 0}</span>
-                    </button>
-                    <button
-                      onClick={() => startReply(msg.userName || '익명')}
-                      className="flex items-center gap-1.5 text-slate-500 hover:text-white transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">chat_bubble_outline</span>
-                      <span className="text-[11px] font-bold">답글 달기</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
+              ))
+            )}
+          </div>
+
+          {/* 최신 댓글로 이동 버튼 */}
+          {showScrollButton && (
+            <button
+              onClick={scrollToBottom}
+              className="absolute bottom-6 right-6 flex items-center gap-2 px-5 py-3 bg-primary text-white rounded-full shadow-xl hover:bg-blue-600 transition-all z-50 border-2 border-white/20"
+              style={{ boxShadow: '0 10px 40px rgba(59, 130, 246, 0.5)' }}
+            >
+              <span className="material-symbols-outlined text-[20px]">arrow_downward</span>
+              <span className="text-sm font-bold">최신 댓글로 이동</span>
+            </button>
           )}
         </div>
 
@@ -284,22 +409,20 @@ export default function DebateRoom() {
             <div className="flex bg-[#1c2127] p-1 rounded-xl border border-slate-800 shadow-inner">
               <button
                 onClick={() => setUserSide('PRO')}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  userSide === 'PRO'
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${userSide === 'PRO'
                   ? 'bg-primary text-white shadow-lg shadow-primary/20'
                   : 'text-slate-500 hover:text-slate-300'
-                }`}
+                  }`}
               >
                 <span className="material-symbols-outlined text-[16px]">check_circle</span>
                 찬성
               </button>
               <button
                 onClick={() => setUserSide('CON')}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  userSide === 'CON'
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${userSide === 'CON'
                   ? 'bg-secondary text-white shadow-lg shadow-secondary/20'
                   : 'text-slate-500 hover:text-slate-300'
-                }`}
+                  }`}
               >
                 <span className="material-symbols-outlined text-[16px]">cancel</span>
                 반대
@@ -310,18 +433,20 @@ export default function DebateRoom() {
           <div className="flex flex-col shadow-2xl overflow-hidden">
             {replyTarget && (
               <div className="flex items-center justify-between px-4 py-2 bg-primary/10 border border-primary/30 border-b-0 rounded-t-2xl animate-in slide-in-from-bottom-2">
-                <div className="flex items-center gap-2 text-primary text-[11px] font-bold">
-                  <span className="material-symbols-outlined text-[16px]">reply</span>
-                  <span>@{replyTarget}님에게 답글 작성 중...</span>
+                <div className="flex flex-col gap-1 text-primary text-[11px]">
+                  <div className="flex items-center gap-2 font-bold">
+                    <span className="material-symbols-outlined text-[16px]">reply</span>
+                    <span>"{replyTarget.content.substring(0, 30)}{replyTarget.content.length > 30 ? '...' : ''}"</span>
+                  </div>
+                  <span className="text-[10px] text-primary/70">라는 의견에 대한 답글 작성 중...</span>
                 </div>
                 <button onClick={() => setReplyTarget(null)} className="text-primary hover:bg-primary/20 rounded-full p-0.5 transition-colors">
                   <span className="material-symbols-outlined text-[16px]">close</span>
                 </button>
               </div>
             )}
-            <div className={`flex gap-3 items-end bg-[#1c2127] border p-3 transition-all focus-within:border-primary/50 ${
-              replyTarget ? 'rounded-b-2xl border-primary/30' : 'rounded-2xl border-slate-800'
-            }`}>
+            <div className={`flex gap-3 items-end bg-[#1c2127] border p-3 transition-all focus-within:border-primary/50 ${replyTarget ? 'rounded-b-2xl border-primary/30' : 'rounded-2xl border-slate-800'
+              }`}>
               <textarea
                 id="chat-input"
                 value={input}
@@ -334,11 +459,10 @@ export default function DebateRoom() {
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || !user || !userSide || userSide === 'NEUTRAL'}
-                className={`size-11 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
-                  input.trim() && user && userSide && userSide !== 'NEUTRAL'
+                className={`size-11 rounded-xl flex items-center justify-center transition-all active:scale-90 ${input.trim() && user && userSide && userSide !== 'NEUTRAL'
                   ? 'bg-primary text-white shadow-lg shadow-primary/20 hover:bg-blue-600'
                   : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                }`}
+                  }`}
               >
                 <span className="material-symbols-outlined font-bold">send</span>
               </button>
@@ -361,16 +485,14 @@ export default function DebateRoom() {
                 <div
                   key={p.id}
                   onClick={() => setActiveParticipantId(activeParticipantId === p.id ? null : p.id)}
-                  className={`flex flex-col gap-2 p-2 rounded-xl transition-all cursor-pointer ${
-                    activeParticipantId === p.id ? 'bg-slate-800/50 ring-1 ring-slate-700' : 'hover:bg-slate-800/30'
-                  } group/user animate-in fade-in`}
+                  className={`flex flex-col gap-2 p-2 rounded-xl transition-all cursor-pointer ${activeParticipantId === p.id ? 'bg-slate-800/50 ring-1 ring-slate-700' : 'hover:bg-slate-800/30'
+                    } group/user animate-in fade-in`}
                   style={{ animationDelay: `${idx * 50}ms` }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={`size-8 rounded-full border transition-transform group-hover/user:scale-105 ${
-                        p.side === 'PRO' ? 'border-primary' : p.side === 'CON' ? 'border-secondary' : 'border-purple-500'
-                      }`}>
+                      <div className={`size-8 rounded-full border transition-transform group-hover/user:scale-105 ${p.side === 'PRO' ? 'border-primary' : p.side === 'CON' ? 'border-secondary' : 'border-purple-500'
+                        }`}>
                         <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-xs">
                           {p.userName?.charAt(0) || 'U'}
                         </div>

@@ -120,6 +120,14 @@ export function useAuth() {
   // 로그아웃
   const signOut = async () => {
     try {
+      // localStorage에서 사용자별 데이터 모두 삭제
+      if (auth.currentUser) {
+        const userKey = auth.currentUser.uid;
+        localStorage.removeItem(`recent_visits_${userKey}`);
+        localStorage.removeItem(`pinned_debates_${userKey}`);
+      }
+
+      // Firebase 로그아웃
       await firebaseSignOut(auth);
       return { success: true };
     } catch (error: any) {

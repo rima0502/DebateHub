@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
   getDebate,
-  getMessages,
   subscribeToMessages,
   sendMessage,
   toggleMessageLike,
-  getParticipants,
   subscribeToParticipants,
   joinDebate,
   leaveDebate

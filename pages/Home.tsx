@@ -3,17 +3,15 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useDebates } from '../src/hooks/useDebates';
 import { useAuth } from '../src/hooks/useAuth';
-import type { Debate as FirestoreDebate, DebateMessage } from '../src/types/debate';
-import { Timestamp, collection, query, where, onSnapshot, orderBy, limit, getDocs } from 'firebase/firestore';
+import type { Debate as FirestoreDebate } from '../src/types/debate';
+import { Timestamp, collection, query, where, onSnapshot, limit } from 'firebase/firestore';
 import { db } from '../src/firebase';
 
 const CATEGORY_THEMES: Record<string, { color: string; border: string; bg: string; text: string }> = {
   '전체': { color: 'bg-primary', border: 'border-primary/50', bg: 'bg-primary/10', text: 'text-primary' },
   '정치/사회': { color: 'bg-cat_politics', border: 'border-cat_politics/50', bg: 'bg-cat_politics/10', text: 'text-cat_politics' },
-  '정치': { color: 'bg-cat_politics', border: 'border-cat_politics/50', bg: 'bg-cat_politics/10', text: 'text-cat_politics' },
   '경제': { color: 'bg-cat_economy', border: 'border-cat_economy/50', bg: 'bg-cat_economy/10', text: 'text-cat_economy' },
   '기술': { color: 'bg-cat_tech', border: 'border-cat_tech/50', bg: 'bg-cat_tech/10', text: 'text-cat_tech' },
-  '과학': { color: 'bg-cat_tech', border: 'border-cat_tech/50', bg: 'bg-cat_tech/10', text: 'text-cat_tech' },
   '윤리': { color: 'bg-cat_ethics', border: 'border-cat_ethics/50', bg: 'bg-cat_ethics/10', text: 'text-cat_ethics' },
   '환경': { color: 'bg-cat_env', border: 'border-cat_env/50', bg: 'bg-cat_env/10', text: 'text-cat_env' },
   '교육': { color: 'bg-cat_edu', border: 'border-cat_edu/50', bg: 'bg-cat_edu/10', text: 'text-cat_edu' },
@@ -63,6 +61,9 @@ interface FeedItem {
   text: string;
   time: string;
   debateId?: string;
+  timestamp?: number; // 정렬용 타임스탬프
+  userAvatar?: string; // 프로필 사진
+  messageId?: string; // 하이라이트할 메시지 ID
 }
 
 const parseCount = (str: string): number => {
@@ -101,9 +102,12 @@ export default function Home() {
     }
   }, [user]);
 
-  // 실시간 피드: 사용자가 참여한 토론방의 답글 및 좋아요 감지
+  // 활동 피드: Firestore notifications 컬렉션에서 가져오기
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setFeedData([]);
+      return;
+    }
 
     const getTimeAgo = (timestamp: Timestamp) => {
       const now = Date.now();
@@ -118,91 +122,37 @@ export default function Home() {
       return `${Math.floor(hours / 24)}일 전`;
     };
 
-    // 사용자가 작성한 메시지 ID 목록 가져오기
-    const fetchUserMessages = async () => {
-      try {
-        const messagesRef = collection(db, 'messages');
-        const q = query(messagesRef, where('userId', '==', user.uid));
-        const snapshot = await getDocs(q);
-        const userMessageIds = snapshot.docs.map(doc => doc.id);
+    // Firestore notifications 컬렉션 실시간 구독
+    const notificationsQuery = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      limit(50)
+    );
 
-        // 실시간으로 답글 감지
-        const replyQuery = query(
-          collection(db, 'messages'),
-          where('replyTo', 'in', userMessageIds.length > 0 ? userMessageIds.slice(0, 10) : ['dummy']),
-          orderBy('createdAt', 'desc'),
-          limit(10)
-        );
-
-        const unsubscribeReplies = onSnapshot(replyQuery, async (snapshot) => {
-          const newFeeds: FeedItem[] = [];
-
-          for (const doc of snapshot.docs) {
-            const msg = doc.data() as DebateMessage;
-            if (msg.userId !== user.uid) {
-              // 토론방 정보 가져오기
-              const debateDoc = await getDocs(query(collection(db, 'debates'), where('__name__', '==', msg.debateId)));
-              const debate = debateDoc.docs[0]?.data();
-
-              newFeeds.push({
-                user: msg.userName?.charAt(0) || 'U',
-                cat: debate?.category || '전체',
-                text: `"${msg.content.substring(0, 30)}${msg.content.length > 30 ? '...' : ''}" 라는 답글이 등록되었습니다.`,
-                time: getTimeAgo(msg.createdAt as Timestamp),
-                debateId: msg.debateId
-              });
-            }
-          }
-
-          setFeedData(prev => {
-            const combined = [...newFeeds, ...prev];
-            const unique = combined.filter((item, index, self) =>
-              index === self.findIndex(t => t.text === item.text && t.time === item.time)
-            );
-            return unique.slice(0, 10);
-          });
-        });
-
-        // 좋아요 감지 - 사용자 메시지에 좋아요가 눌렸을 때
-        const messagesQuery = query(
-          collection(db, 'messages'),
-          where('userId', '==', user.uid),
-          orderBy('createdAt', 'desc'),
-          limit(20)
-        );
-
-        const unsubscribeLikes = onSnapshot(messagesQuery, async (snapshot) => {
-          for (const change of snapshot.docChanges()) {
-            if (change.type === 'modified') {
-              const msg = change.doc.data() as DebateMessage;
-              const oldMsg = change.doc.data() as DebateMessage;
-
-              if (msg.likes > (oldMsg.likes || 0)) {
-                const debateDoc = await getDocs(query(collection(db, 'debates'), where('__name__', '==', msg.debateId)));
-                const debate = debateDoc.docs[0]?.data();
-
-                setFeedData(prev => [{
-                  user: msg.likedBy?.[msg.likedBy.length - 1]?.charAt(0) || 'U',
-                  cat: debate?.category || '전체',
-                  text: `회원님의 의견 "${msg.content.substring(0, 30)}${msg.content.length > 30 ? '...' : ''}"에 좋아요를 눌렀습니다.`,
-                  time: '방금 전',
-                  debateId: msg.debateId
-                }, ...prev].slice(0, 10));
-              }
-            }
-          }
-        });
-
-        return () => {
-          unsubscribeReplies();
-          unsubscribeLikes();
+    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+      const notifications: FeedItem[] = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          user: data.actorName?.charAt(0) || 'U',
+          cat: data.category || '전체',
+          text: data.type === 'like'
+            ? `[${data.debateTitle}] 회원님의 의견 "${data.messageContent}..."에 좋아요를 눌렀습니다.`
+            : `[${data.debateTitle}] "${data.messageContent}..." 라는 답글이 등록되었습니다.`,
+          time: data.createdAt ? getTimeAgo(data.createdAt as Timestamp) : '방금 전',
+          debateId: data.debateId,
+          timestamp: data.createdAt ? (data.createdAt as Timestamp).toMillis() : Date.now(),
+          userAvatar: data.actorAvatar,
+          messageId: data.messageId
         };
-      } catch (error) {
-        console.error('피드 데이터 로드 오류:', error);
-      }
-    };
+      });
 
-    fetchUserMessages();
+      // 클라이언트에서 정렬
+      notifications.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+      setFeedData(notifications);
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
   // Firestore 데이터를 화면 표시용 포맷으로 변환
@@ -218,17 +168,24 @@ export default function Home() {
   }, [combinedDebates]);
 
   const filteredDebates = useMemo(() => {
-    if (activeCategory === '전체') return combinedDebates;
-    return combinedDebates.filter(debate => debate.category === activeCategory);
+    const filtered = activeCategory === '전체'
+      ? combinedDebates
+      : combinedDebates.filter(debate => debate.category === activeCategory);
+
+    // 참여자 수 기준으로 내림차순 정렬
+    return [...filtered].sort((a, b) => parseCount(b.participants) - parseCount(a.participants));
   }, [activeCategory, combinedDebates]);
 
   const togglePin = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!user) return;
+
     setPinnedIds(prev => {
       const newPinned = prev.includes(id) ? prev.filter(pId => pId !== id) : [...prev, id];
-      // localStorage에 저장
-      localStorage.setItem('pinned_debates', JSON.stringify(newPinned));
+      // 사용자별로 localStorage에 저장
+      const userKey = user.uid;
+      localStorage.setItem(`pinned_debates_${userKey}`, JSON.stringify(newPinned));
       return newPinned;
     });
   };
@@ -398,20 +355,28 @@ export default function Home() {
                 실시간 활동 피드
               </h3>
             </div>
-            <div className={`flex flex-col transition-all duration-700 ease-in-out overflow-hidden ${isFeedExpanded ? 'max-h-[1000px]' : 'max-h-[300px]'}`}>
+            <div className={`flex flex-col transition-all duration-700 ease-in-out overflow-y-auto no-scrollbar ${isFeedExpanded ? 'max-h-[1000px]' : 'max-h-[300px]'}`}>
               {feedData.length > 0 ? feedData.map((item, i) => {
                 const theme = CATEGORY_THEMES[item.cat] || CATEGORY_THEMES['전체'];
                 return (
                   <Link
                     key={i}
-                    to={item.debateId ? `/room/${item.debateId}` : '#'}
+                    to={item.debateId ? `/room/${item.debateId}${item.messageId ? `?highlight=${item.messageId}` : ''}` : '#'}
                     className={`p-5 border-b border-slate-800/50 hover:bg-slate-800/30 transition-all cursor-pointer group block ${
                       !isFeedExpanded && i >= 3 ? 'hidden' : 'animate-in fade-in slide-in-from-bottom-2 duration-300'
                     }`}
                     style={{ animationDelay: `${i * 50}ms` }}
                   >
                     <div className="flex gap-4">
-                      <div className={`size-9 rounded-full ${theme.bg} ${theme.text} flex items-center justify-center text-sm font-black shrink-0 border ${theme.border}`}>{item.user}</div>
+                      {item.userAvatar ? (
+                        <img
+                          src={item.userAvatar}
+                          alt={item.user}
+                          className="size-9 rounded-full shrink-0 border-2 border-slate-700 object-cover"
+                        />
+                      ) : (
+                        <div className={`size-9 rounded-full ${theme.bg} ${theme.text} flex items-center justify-center text-sm font-black shrink-0 border ${theme.border}`}>{item.user}</div>
+                      )}
                       <div className="flex flex-col gap-1">
                         <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{item.time} • <span className={theme.text}>{item.cat}</span></p>
                         <p className="text-xs text-slate-300 leading-relaxed group-hover:text-white transition-colors">{item.text}</p>
@@ -437,12 +402,12 @@ export default function Home() {
             </button>
           </div>
 
-          {/* My Debates */}
+          {/* Recently Visited Debates */}
           <div className="rounded-2xl bg-[#1c2127] border border-slate-800 shadow-sm flex flex-col overflow-hidden">
             <div className="p-5 border-b border-slate-800 flex items-center justify-between">
               <h3 className="font-black text-white flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">bookmarks</span>
-                나의 토론방
+                <span className="material-symbols-outlined text-primary text-[20px]">history</span>
+                최근 방문한 토론방
               </h3>
             </div>
             
