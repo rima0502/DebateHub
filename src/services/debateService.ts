@@ -706,13 +706,16 @@ export async function kickParticipant(debateId: string, userId: string): Promise
       });
     }
 
-    // 강제퇴장 목록에 추가 (userId와 userName 함께 저장)
+    // 강제퇴장 목록에 추가 (arrayUnion 대신 직접 배열 업데이트)
+    const currentBannedUsers = debate.bannedUsers || [];
+    const newBannedUser = {
+      userId,
+      userName,
+      bannedAt: Timestamp.now()
+    };
+
     await updateDoc(doc(db, DEBATES_COLLECTION, debateId), {
-      bannedUsers: arrayUnion({
-        userId,
-        userName,
-        bannedAt: Timestamp.now()
-      })
+      bannedUsers: [...currentBannedUsers, newBannedUser]
     });
 
     return { success: true };
@@ -742,16 +745,15 @@ export async function unbanParticipant(debateId: string, userId: string): Promis
       return { success: false, error: '방장만 강제퇴장을 해제할 수 있습니다.' };
     }
 
-    // 강제퇴장 목록에서 제거 (하위 호환성: string과 BannedUser 객체 둘 다 처리)
+    // 강제퇴장 목록에서 제거 (arrayRemove 대신 직접 필터링)
     if (debate.bannedUsers) {
-      const bannedUser = debate.bannedUsers.find(banned =>
-        typeof banned === 'string' ? banned === userId : banned.userId === userId
+      const updatedBannedUsers = debate.bannedUsers.filter(banned =>
+        typeof banned === 'string' ? banned !== userId : banned.userId !== userId
       );
-      if (bannedUser) {
-        await updateDoc(doc(db, DEBATES_COLLECTION, debateId), {
-          bannedUsers: arrayRemove(bannedUser)
-        });
-      }
+
+      await updateDoc(doc(db, DEBATES_COLLECTION, debateId), {
+        bannedUsers: updatedBannedUsers
+      });
     }
 
     return { success: true };
