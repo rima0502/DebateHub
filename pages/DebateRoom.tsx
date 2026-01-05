@@ -105,7 +105,9 @@ export default function DebateRoom() {
 
   // 강제퇴장 당한 사용자 감지 (실시간 감지)
   useEffect(() => {
-    if (debate && user && debate.bannedUsers && debate.bannedUsers.some(banned => banned.userId === user.uid)) {
+    if (debate && user && debate.bannedUsers && debate.bannedUsers.some(banned =>
+      typeof banned === 'string' ? banned === user.uid : banned.userId === user.uid
+    )) {
       alert('강제퇴장되었습니다. 방장에게 문의하세요.');
       navigate('/debates');
     }
