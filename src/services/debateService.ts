@@ -76,7 +76,8 @@ export async function createDebate(input: CreateDebateInput): Promise<{ success:
       imageUrl: input.imageUrl || `https://picsum.photos/seed/${Date.now()}/600/400`,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      pinnedBy: []
+      pinnedBy: [],
+      bannedUsers: []
     };
 
     const docRef = await addDoc(collection(db, DEBATES_COLLECTION), debateData);
@@ -195,7 +196,36 @@ export async function deleteDebate(debateId: string): Promise<{ success: boolean
       return { success: false, error: '토론방 생성자만 삭제할 수 있습니다.' };
     }
 
-    await deleteDoc(doc(db, DEBATES_COLLECTION, debateId));
+    // 먼저 상태를 'deleted'로 변경하여 실시간 구독자들에게 알림
+    await updateDoc(doc(db, DEBATES_COLLECTION, debateId), {
+      status: 'deleted' as any
+    });
+
+    // 약간의 지연 후 실제 삭제 (구독자들이 알림을 받을 시간)
+    setTimeout(async () => {
+      // 관련 메시지 삭제
+      const messagesQuery = query(
+        collection(db, MESSAGES_COLLECTION),
+        where('debateId', '==', debateId)
+      );
+      const messagesSnapshot = await getDocs(messagesQuery);
+      const deleteMessagesPromises = messagesSnapshot.docs.map(doc => deleteDoc(doc.ref));
+
+      // 관련 참여자 삭제
+      const participantsQuery = query(
+        collection(db, PARTICIPANTS_COLLECTION),
+        where('debateId', '==', debateId)
+      );
+      const participantsSnapshot = await getDocs(participantsQuery);
+      const deleteParticipantsPromises = participantsSnapshot.docs.map(doc => deleteDoc(doc.ref));
+
+      // 모든 관련 데이터 삭제
+      await Promise.all([...deleteMessagesPromises, ...deleteParticipantsPromises]);
+
+      // 마지막으로 토론방 삭제
+      await deleteDoc(doc(db, DEBATES_COLLECTION, debateId));
+    }, 1000);
+
     return { success: true };
   } catch (error: any) {
     console.error('토론방 삭제 오류:', error);
@@ -431,6 +461,17 @@ export async function joinDebate(debateId: string, side: DebateSide): Promise<{ 
       return { success: false, error: '로그인이 필요합니다.' };
     }
 
+    // 토론방 정보 가져오기
+    const debate = await getDebate(debateId);
+    if (!debate) {
+      return { success: false, error: '토론방을 찾을 수 없습니다.' };
+    }
+
+    // 강제퇴장 당한 사용자인지 확인
+    if (debate.bannedUsers && debate.bannedUsers.includes(user.uid)) {
+      return { success: false, error: '강제퇴장되었습니다. 방장에게 문의하세요.' };
+    }
+
     // 이미 참여 중인지 확인
     const q = query(
       collection(db, PARTICIPANTS_COLLECTION),
@@ -590,6 +631,92 @@ export async function leaveDebate(debateId: string): Promise<{ success: boolean;
     return { success: true };
   } catch (error: any) {
     console.error('토론방 나가기 오류:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 참여자 강제퇴장 (방장만 가능)
+ */
+export async function kickParticipant(debateId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      return { success: false, error: '로그인이 필요합니다.' };
+    }
+
+    // 방장 권한 확인
+    const debate = await getDebate(debateId);
+    if (!debate) {
+      return { success: false, error: '토론방을 찾을 수 없습니다.' };
+    }
+
+    if (debate.creatorId !== user.uid) {
+      return { success: false, error: '방장만 강제퇴장시킬 수 있습니다.' };
+    }
+
+    // 자기 자신은 강제퇴장시킬 수 없음
+    if (userId === user.uid) {
+      return { success: false, error: '자기 자신을 강제퇴장시킬 수 없습니다.' };
+    }
+
+    // 참여자 제거
+    const q = query(
+      collection(db, PARTICIPANTS_COLLECTION),
+      where('debateId', '==', debateId),
+      where('userId', '==', userId)
+    );
+    const participantSnapshot = await getDocs(q);
+
+    if (!participantSnapshot.empty) {
+      await deleteDoc(participantSnapshot.docs[0].ref);
+
+      // 토론방의 참여자 카운트 감소
+      await updateDoc(doc(db, DEBATES_COLLECTION, debateId), {
+        participantCount: increment(-1)
+      });
+    }
+
+    // 강제퇴장 목록에 추가
+    await updateDoc(doc(db, DEBATES_COLLECTION, debateId), {
+      bannedUsers: arrayUnion(userId)
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('강제퇴장 오류:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 강제퇴장 해제 (방장만 가능)
+ */
+export async function unbanParticipant(debateId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      return { success: false, error: '로그인이 필요합니다.' };
+    }
+
+    // 방장 권한 확인
+    const debate = await getDebate(debateId);
+    if (!debate) {
+      return { success: false, error: '토론방을 찾을 수 없습니다.' };
+    }
+
+    if (debate.creatorId !== user.uid) {
+      return { success: false, error: '방장만 강제퇴장을 해제할 수 있습니다.' };
+    }
+
+    // 강제퇴장 목록에서 제거
+    await updateDoc(doc(db, DEBATES_COLLECTION, debateId), {
+      bannedUsers: arrayRemove(userId)
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('강제퇴장 해제 오류:', error);
     return { success: false, error: error.message };
   }
 }

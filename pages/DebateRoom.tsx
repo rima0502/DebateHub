@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDebateRoom } from '../src/hooks/useDebateRoom';
 import { useAuth } from '../src/hooks/useAuth';
-import { updateParticipantActivity } from '../src/services/debateService';
+import { updateParticipantActivity, kickParticipant } from '../src/services/debateService';
 import { Timestamp } from 'firebase/firestore';
 import type { DebateSide } from '../src/types/debate';
 
@@ -94,6 +94,14 @@ export default function DebateRoom() {
       localStorage.setItem(`recent_visits_${userKey}`, JSON.stringify(updatedVisits));
     }
   }, [debate, id, user]);
+
+  // 토론방 삭제 감지
+  useEffect(() => {
+    if (debate && (debate.status as any) === 'deleted') {
+      alert('이 토론방은 삭제되었습니다.');
+      navigate('/debates');
+    }
+  }, [debate, navigate]);
 
   const theme = debate ? CATEGORY_THEMES[debate.category] || CATEGORY_THEMES['전체'] : CATEGORY_THEMES['전체'];
 
@@ -275,6 +283,28 @@ export default function DebateRoom() {
   const handleReport = (e: React.MouseEvent, participantName: string) => {
     e.stopPropagation();
     navigate(`/report/${participantName}`);
+  };
+
+  const handleKick = async (e: React.MouseEvent, userId: string, userName: string) => {
+    e.stopPropagation();
+
+    if (!confirm(`"${userName}" 님을 강제퇴장시키시겠습니까?\n\n강제퇴장된 사용자는 다시 이 토론방에 참여할 수 없습니다.`)) {
+      return;
+    }
+
+    try {
+      const result = await kickParticipant(id || '', userId);
+
+      if (result.success) {
+        alert(`"${userName}" 님을 강제퇴장시켰습니다.`);
+        setActiveParticipantId(null);
+      } else {
+        alert(result.error || '강제퇴장에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('강제퇴장 오류:', error);
+      alert('강제퇴장 중 오류가 발생했습니다.');
+    }
   };
 
   // 로딩 중
@@ -532,7 +562,17 @@ export default function DebateRoom() {
                   </div>
 
                   {activeParticipantId === p.id && user && p.userId !== user.uid && (
-                    <div className="mt-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                    <div className="mt-2 animate-in fade-in slide-in-from-bottom-1 duration-200 flex flex-col gap-2">
+                      {/* 방장인 경우 강제퇴장 버튼 표시 */}
+                      {debate && debate.creatorId === user.uid && (
+                        <button
+                          onClick={(e) => handleKick(e, p.userId, p.userName || '익명')}
+                          className="w-full py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-500 text-xs font-bold hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">block</span>
+                          강제퇴장시키기
+                        </button>
+                      )}
                       <button
                         onClick={(e) => handleReport(e, p.userName || '익명')}
                         className="w-full py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-bold hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"

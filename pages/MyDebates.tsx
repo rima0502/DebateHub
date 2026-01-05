@@ -1,11 +1,12 @@
 
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/hooks/useAuth';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../src/firebase';
 import type { Debate } from '../src/types/debate';
 import { Timestamp } from 'firebase/firestore';
+import { deleteDebate } from '../src/services/debateService';
 
 const CATEGORY_THEMES: Record<string, { color: string; border: string; bg: string; text: string }> = {
   '전체': { color: 'bg-primary', border: 'border-primary/50', bg: 'bg-primary/10', text: 'text-primary' },
@@ -35,6 +36,33 @@ export default function MyDebates() {
   const { user, loading: authLoading } = useAuth();
   const [debates, setDebates] = useState<Debate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const handleDelete = async (debateId: string, debateTitle: string) => {
+    if (!confirm(`"${debateTitle}" 토론방을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 모든 메시지와 참여자 정보가 삭제됩니다.`)) {
+      return;
+    }
+
+    setDeletingId(debateId);
+
+    try {
+      const result = await deleteDebate(debateId);
+
+      if (result.success) {
+        alert('토론방이 삭제되었습니다.');
+        // 목록에서 제거
+        setDebates(prev => prev.filter(d => d.id !== debateId));
+      } else {
+        alert(result.error || '토론방 삭제에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('토론방 삭제 오류:', error);
+      alert('토론방 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   useEffect(() => {
     const fetchMyDebates = async () => {
@@ -178,7 +206,24 @@ export default function MyDebates() {
                           <span className="material-symbols-outlined text-sm">chat_bubble</span>
                           <span>{debate.messageCount}</span>
                         </div>
-                        <div className="ml-auto">
+                        <div className="ml-auto flex gap-2">
+                          <button
+                            onClick={() => handleDelete(debate.id, debate.title)}
+                            disabled={deletingId === debate.id}
+                            className="px-4 py-2 bg-red-500/10 text-red-500 border border-red-500/30 rounded-lg hover:bg-red-500 hover:text-white transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                          >
+                            {deletingId === debate.id ? (
+                              <>
+                                <div className="size-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                <span>삭제 중...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="material-symbols-outlined text-sm">delete</span>
+                                <span>삭제</span>
+                              </>
+                            )}
+                          </button>
                           <Link
                             to={`/room/${debate.id}`}
                             className="px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-lg hover:bg-primary hover:text-white transition-colors font-bold"

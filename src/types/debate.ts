@@ -27,6 +27,7 @@ export interface Debate {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   pinnedBy?: string[]; // 핀한 사용자 ID 목록
+  bannedUsers?: string[]; // 강제퇴장된 사용자 ID 목록
 }
 
 // 토론 메시지 인터페이스
