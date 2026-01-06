@@ -79,10 +79,15 @@ export default function MyPage() {
       const finalPhotoURL = photoURL.trim() || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`;
 
       // Firebase Auth 프로필 업데이트
-      await updateProfile(auth.currentUser, {
-        displayName: displayName.trim(),
-        photoURL: finalPhotoURL
-      });
+      try {
+        await updateProfile(auth.currentUser, {
+          displayName: displayName.trim(),
+          photoURL: finalPhotoURL
+        });
+      } catch (authError: any) {
+        console.error('Auth 프로필 업데이트 오류:', authError);
+        throw new Error('프로필 업데이트 실패: ' + authError.message);
+      }
 
       // Firestore 사용자 문서 업데이트
       const updateData: any = {
@@ -95,7 +100,12 @@ export default function MyPage() {
         updateData.lastNameChange = serverTimestamp();
       }
 
-      await updateDoc(doc(db, 'users', user.uid), updateData);
+      try {
+        await updateDoc(doc(db, 'users', user.uid), updateData);
+      } catch (firestoreError: any) {
+        console.error('Firestore 사용자 문서 업데이트 오류:', firestoreError);
+        throw new Error('사용자 정보 저장 실패: ' + firestoreError.message);
+      }
 
       // participants 및 messages 컬렉션 업데이트 (권한 문제 시 무시)
       try {

@@ -150,8 +150,7 @@ export function subscribeToDebates(
 ): () => void {
   const constraints: QueryConstraint[] = [
     where('status', '==', 'active'),
-    orderBy('participantCount', 'desc'),
-    limit(10) // 20개에서 10개로 감소
+    limit(20) // 정렬을 클라이언트에서 하므로 더 많이 가져옴
   ];
 
   if (category && category !== '전체') {
@@ -171,6 +170,10 @@ export function subscribeToDebates(
         id: doc.id,
         ...doc.data()
       })) as Debate[];
+
+      // 클라이언트에서 participantCount로 정렬
+      debates.sort((a, b) => (b.participantCount || 0) - (a.participantCount || 0));
+
       callback(debates);
       debatesThrottleTimer = null;
     }, DEBATES_THROTTLE_MS);
