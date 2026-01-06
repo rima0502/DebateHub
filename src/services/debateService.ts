@@ -149,8 +149,8 @@ export function subscribeToDebates(
   category?: DebateCategory | '전체'
 ): () => void {
   const constraints: QueryConstraint[] = [
-    where('status', '==', 'active'),
-    limit(50) // 무한 스크롤을 위해 충분한 데이터 가져오기
+    where('status', '==', 'active')
+    // limit 제거: 모든 활성 토론 가져오기 (클라이언트에서 페이지네이션)
   ];
 
   if (category && category !== '전체') {
