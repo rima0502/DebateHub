@@ -35,9 +35,6 @@ export function useDebateRoom(debateId: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 사용자 프로필 캐시 (리렌더링 최소화)
-  const [userProfiles, setUserProfiles] = useState<Record<string, { displayName: string; photoURL: string }>>({});
-
   // 토론방 실시간 구독
   useEffect(() => {
     const unsubscribe = subscribeToDebate(debateId, (debateData) => {
@@ -58,50 +55,45 @@ export function useDebateRoom(debateId: string) {
       // 모든 고유 userId 추출
       const userIds = [...new Set(updatedMessages.map(m => m.userId))];
 
-      // 캐시되지 않은 사용자만 가져오기
-      const uncachedIds = userIds.filter(uid => !userProfiles[uid]);
-
-      if (uncachedIds.length > 0) {
-        const newProfiles: Record<string, { displayName: string; photoURL: string }> = {};
-        await Promise.all(
-          uncachedIds.map(async (uid) => {
-            try {
-              const userDoc = await getDoc(doc(db, 'users', uid));
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
-                newProfiles[uid] = {
-                  displayName: userData.displayName || '익명',
-                  photoURL: userData.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`
-                };
-              } else {
-                newProfiles[uid] = {
-                  displayName: '익명',
-                  photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`
-                };
-              }
-            } catch (error) {
-              console.error(`사용자 ${uid} 프로필 로드 실패:`, error);
-              newProfiles[uid] = {
+      // 모든 사용자 프로필을 매번 새로 가져오기 (캐시 없음 - 최신 정보 보장)
+      const profiles: Record<string, { displayName: string; photoURL: string }> = {};
+      await Promise.all(
+        userIds.map(async (uid) => {
+          try {
+            const userDoc = await getDoc(doc(db, 'users', uid));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              profiles[uid] = {
+                displayName: userData.displayName || '익명',
+                photoURL: userData.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`
+              };
+            } else {
+              profiles[uid] = {
                 displayName: '익명',
                 photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`
               };
             }
-          })
-        );
-        setUserProfiles(prev => ({ ...prev, ...newProfiles }));
-      }
+          } catch (error) {
+            console.error(`사용자 ${uid} 프로필 로드 실패:`, error);
+            profiles[uid] = {
+              displayName: '익명',
+              photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`
+            };
+          }
+        })
+      );
 
       // 메시지에 프로필 정보 추가
       const enriched = updatedMessages.map(msg => ({
         ...msg,
-        displayName: (userProfiles[msg.userId] || { displayName: '익명' }).displayName,
-        photoURL: (userProfiles[msg.userId] || { photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.userId}` }).photoURL
+        displayName: profiles[msg.userId]?.displayName || '익명',
+        photoURL: profiles[msg.userId]?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.userId}`
       }));
       setMessages(enriched);
     });
 
     return () => unsubscribe();
-  }, [debateId, userProfiles]);
+  }, [debateId]);
 
   // 참여자 실시간 구독 + 사용자 프로필 불러오기
   useEffect(() => {
@@ -109,50 +101,45 @@ export function useDebateRoom(debateId: string) {
       // 모든 고유 userId 추출
       const userIds = [...new Set(updatedParticipants.map(p => p.userId))];
 
-      // 캐시되지 않은 사용자만 가져오기
-      const uncachedIds = userIds.filter(uid => !userProfiles[uid]);
-
-      if (uncachedIds.length > 0) {
-        const newProfiles: Record<string, { displayName: string; photoURL: string }> = {};
-        await Promise.all(
-          uncachedIds.map(async (uid) => {
-            try {
-              const userDoc = await getDoc(doc(db, 'users', uid));
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
-                newProfiles[uid] = {
-                  displayName: userData.displayName || '익명',
-                  photoURL: userData.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`
-                };
-              } else {
-                newProfiles[uid] = {
-                  displayName: '익명',
-                  photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`
-                };
-              }
-            } catch (error) {
-              console.error(`사용자 ${uid} 프로필 로드 실패:`, error);
-              newProfiles[uid] = {
+      // 모든 사용자 프로필을 매번 새로 가져오기 (캐시 없음 - 최신 정보 보장)
+      const profiles: Record<string, { displayName: string; photoURL: string }> = {};
+      await Promise.all(
+        userIds.map(async (uid) => {
+          try {
+            const userDoc = await getDoc(doc(db, 'users', uid));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              profiles[uid] = {
+                displayName: userData.displayName || '익명',
+                photoURL: userData.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`
+              };
+            } else {
+              profiles[uid] = {
                 displayName: '익명',
                 photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`
               };
             }
-          })
-        );
-        setUserProfiles(prev => ({ ...prev, ...newProfiles }));
-      }
+          } catch (error) {
+            console.error(`사용자 ${uid} 프로필 로드 실패:`, error);
+            profiles[uid] = {
+              displayName: '익명',
+              photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uid}`
+            };
+          }
+        })
+      );
 
       // 참여자에 프로필 정보 추가
       const enriched = updatedParticipants.map(p => ({
         ...p,
-        displayName: (userProfiles[p.userId] || { displayName: '익명' }).displayName,
-        photoURL: (userProfiles[p.userId] || { photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.userId}` }).photoURL
+        displayName: profiles[p.userId]?.displayName || '익명',
+        photoURL: profiles[p.userId]?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.userId}`
       }));
       setParticipants(enriched);
     });
 
     return () => unsubscribe();
-  }, [debateId, userProfiles]);
+  }, [debateId]);
 
   const send = async (input: CreateMessageInput) => {
     const result = await sendMessage(input);
