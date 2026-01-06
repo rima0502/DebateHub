@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/hooks/useAuth';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
@@ -20,10 +20,15 @@ export default function MyPage() {
   const [canChangeName, setCanChangeName] = useState(true);
   const [isGoogleUser, setIsGoogleUser] = useState(false);
 
+  // 폼 초기화 여부 추적 (한 번만 초기화)
+  const isFormInitialized = useRef(false);
+
   useEffect(() => {
-    if (user) {
+    if (user && !isFormInitialized.current) {
+      // 최초 로드 시에만 폼 초기화
       setDisplayName(user.displayName || '');
       setPhotoURL(user.photoURL || '');
+      isFormInitialized.current = true;
 
       // 구글 사용자인지 확인
       const currentUser = auth.currentUser;
