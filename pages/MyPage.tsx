@@ -215,20 +215,28 @@ export default function MyPage() {
           <div className="flex flex-col gap-6">
             {/* Profile Image */}
             <div className="flex items-center gap-6">
-              {photoURL ? (
+              {photoURL && !photoURL.includes('dicebear') ? (
                 <img
                   src={photoURL}
                   alt="프로필 이미지"
                   className="size-20 rounded-full object-cover border-2 border-primary"
                   onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    // 이미지 로드 실패 시 기본 아바타로 대체
+                    const parent = e.currentTarget.parentElement;
+                    if (parent) {
+                      e.currentTarget.remove();
+                      const fallback = document.createElement('div');
+                      fallback.className = 'size-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-3xl font-bold';
+                      fallback.textContent = displayName?.charAt(0) || user?.email?.charAt(0) || 'U';
+                      parent.insertBefore(fallback, parent.firstChild);
+                    }
                   }}
                 />
-              ) : null}
-              <div className={`size-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-3xl font-bold ${photoURL ? 'hidden' : ''}`}>
-                {displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
-              </div>
+              ) : (
+                <div className="size-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-3xl font-bold">
+                  {displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
+                </div>
+              )}
               <div>
                 <p className="text-white font-bold">{user.email}</p>
                 <p className="text-sm text-slate-500">
