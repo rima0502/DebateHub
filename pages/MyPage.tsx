@@ -114,9 +114,6 @@ export default function MyPage() {
       }
 
       alert('프로필이 업데이트되었습니다!');
-
-      // 전체 페이지 강제 새로고침
-      window.location.reload();
     } catch (error: any) {
       console.error('❌ 프로필 업데이트 오류:', error);
       console.error('에러 상세:', error.code, error.message);

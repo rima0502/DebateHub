@@ -11,7 +11,7 @@ import {
   onAuthStateChanged,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
 export interface AuthUser {
@@ -27,23 +27,39 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let firestoreUnsubscribe: (() => void) | null = null;
+
+    const authUnsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        // Firestore에서 사용자 정보 가져오기 (단일 진실 공급원)
-        try {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            setUser({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              // Firestore 값이 있으면 우선 사용 (빈 문자열도 유효한 값으로 처리)
-              displayName: userData.displayName !== undefined ? userData.displayName : firebaseUser.displayName,
-              photoURL: userData.photoURL !== undefined ? userData.photoURL : firebaseUser.photoURL,
-              emailVerified: firebaseUser.emailVerified
-            });
-          } else {
-            // Firestore 문서가 없으면 Firebase Auth 정보 사용
+        // Firestore 실시간 구독으로 변경 (프로필 변경사항 즉시 반영)
+        firestoreUnsubscribe = onSnapshot(
+          doc(db, 'users', firebaseUser.uid),
+          (docSnapshot) => {
+            if (docSnapshot.exists()) {
+              const userData = docSnapshot.data();
+              setUser({
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                // Firestore 값이 있으면 우선 사용 (빈 문자열도 유효한 값으로 처리)
+                displayName: userData.displayName !== undefined ? userData.displayName : firebaseUser.displayName,
+                photoURL: userData.photoURL !== undefined ? userData.photoURL : firebaseUser.photoURL,
+                emailVerified: firebaseUser.emailVerified
+              });
+            } else {
+              // Firestore 문서가 없으면 Firebase Auth 정보 사용
+              setUser({
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName,
+                photoURL: firebaseUser.photoURL,
+                emailVerified: firebaseUser.emailVerified
+              });
+            }
+            setLoading(false);
+          },
+          (error) => {
+            console.error('사용자 정보 실시간 구독 오류:', error);
+            // 에러 발생 시 Firebase Auth 정보 사용
             setUser({
               uid: firebaseUser.uid,
               email: firebaseUser.email,
@@ -51,25 +67,21 @@ export function useAuth() {
               photoURL: firebaseUser.photoURL,
               emailVerified: firebaseUser.emailVerified
             });
+            setLoading(false);
           }
-        } catch (error) {
-          console.error('사용자 정보 로드 오류:', error);
-          // 에러 발생 시 Firebase Auth 정보 사용
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-            emailVerified: firebaseUser.emailVerified
-          });
-        }
+        );
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      authUnsubscribe();
+      if (firestoreUnsubscribe) {
+        firestoreUnsubscribe();
+      }
+    };
   }, []);
 
   // 이메일로 회원가입
