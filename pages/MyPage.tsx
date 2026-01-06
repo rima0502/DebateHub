@@ -118,6 +118,10 @@ export default function MyPage() {
         setLastNameChange(new Date());
       }
 
+      // 폼 state를 업데이트된 값으로 설정
+      setDisplayName(displayName.trim());
+      setPhotoURL(finalPhotoURL);
+
       alert('프로필이 업데이트되었습니다!');
     } catch (error: any) {
       console.error('❌ 프로필 업데이트 오류:', error);
