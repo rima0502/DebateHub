@@ -1,6 +1,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { HashRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { useAuth } from './src/hooks/useAuth';
 import Home from './pages/Home';
 import CreateDebate from './pages/CreateDebate';
@@ -198,6 +199,7 @@ export default function App() {
           </Routes>
         </main>
         <Footer />
+        <Analytics />
       </div>
     </HashRouter>
   );

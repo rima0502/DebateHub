@@ -19,6 +19,7 @@
   "author": "YourName",
   "license": "MIT",
   "dependencies": {
+    "@vercel/analytics": "^1.6.1",
     "dotenv": "^17.2.3",
     "firebase": "^12.7.0",
     "react": "^19.0.0",
