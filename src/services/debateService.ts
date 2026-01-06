@@ -296,11 +296,26 @@ export async function sendMessage(input: CreateMessageInput): Promise<{ success:
     recentTimestamps.push(now);
     messageRateLimits.set(user.uid, recentTimestamps);
 
+    // Firestore users 컬렉션에서 최신 사용자 정보 가져오기
+    let userName = user.displayName || '익명';
+    let userAvatar = user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`;
+
+    try {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        userName = userData.displayName || userName;
+        userAvatar = userData.photoURL || userAvatar;
+      }
+    } catch (error) {
+      console.warn('사용자 정보 로드 실패, 기본값 사용:', error);
+    }
+
     const messageData: any = {
       debateId: input.debateId,
       userId: user.uid,
-      userName: user.displayName || '익명',
-      userAvatar: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+      userName,
+      userAvatar,
       content,
       side: input.side,
       likes: 0,
@@ -511,11 +526,26 @@ export async function joinDebate(debateId: string, side: DebateSide): Promise<{ 
       return { success: false, error: '이미 참여 중인 토론방입니다.' };
     }
 
+    // Firestore users 컬렉션에서 최신 사용자 정보 가져오기
+    let userName = user.displayName || '익명';
+    let userAvatar = user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`;
+
+    try {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        userName = userData.displayName || userName;
+        userAvatar = userData.photoURL || userAvatar;
+      }
+    } catch (error) {
+      console.warn('사용자 정보 로드 실패, 기본값 사용:', error);
+    }
+
     const participantData = {
       debateId,
       userId: user.uid,
-      userName: user.displayName || '익명',
-      userAvatar: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+      userName,
+      userAvatar,
       side,
       status: '활동 중',
       warnings: 0,
