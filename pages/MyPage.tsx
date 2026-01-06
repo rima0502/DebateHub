@@ -112,7 +112,8 @@ export default function MyPage() {
         throw new Error('사용자 정보 저장 실패: ' + firestoreError.message);
       }
 
-      // participants 및 messages 컬렉션 업데이트 (권한 문제 시 무시)
+      // participants 및 messages 컬렉션 업데이트
+      console.log('참여자 및 메시지 업데이트 시작');
       try {
         // participants 컬렉션 업데이트
         const participantsQuery = query(
@@ -120,6 +121,7 @@ export default function MyPage() {
           where('userId', '==', user.uid)
         );
         const participantsSnapshot = await getDocs(participantsQuery);
+        console.log(`참여자 문서 ${participantsSnapshot.size}개 발견`);
 
         // messages 컬렉션 업데이트
         const messagesQuery = query(
@@ -127,6 +129,7 @@ export default function MyPage() {
           where('userId', '==', user.uid)
         );
         const messagesSnapshot = await getDocs(messagesQuery);
+        console.log(`메시지 문서 ${messagesSnapshot.size}개 발견`);
 
         // 배치 업데이트 (최대 500개씩)
         const batch = writeBatch(db);
@@ -152,11 +155,17 @@ export default function MyPage() {
 
         // 배치 커밋 (500개 제한이 있으므로 확인)
         if (batchCount > 0) {
+          console.log(`총 ${batchCount}개 문서 업데이트 시도`);
           await batch.commit();
+          console.log('배치 커밋 완료');
+        } else {
+          console.log('업데이트할 문서 없음');
         }
-      } catch (updateError) {
-        console.warn('참여자 및 메시지 업데이트 실패 (무시됨):', updateError);
-        // 권한 문제 등으로 실패해도 프로필 업데이트는 성공으로 처리
+      } catch (updateError: any) {
+        console.error('참여자 및 메시지 업데이트 실패:', updateError);
+        console.error('에러 상세:', updateError.message, updateError.code);
+        // 에러가 발생해도 프로필 업데이트는 성공으로 처리하되, 사용자에게 알림
+        alert('프로필은 업데이트되었지만, 이전 메시지와 참여자 정보는 업데이트되지 않았습니다.\n\n에러: ' + updateError.message);
       }
 
       alert('프로필이 업데이트되었습니다!');
