@@ -22,8 +22,16 @@ export default function MyPage() {
 
   useEffect(() => {
     if (user) {
+      console.log('[MyPage] useEffect triggered with user:', {
+        displayName: user.displayName,
+        photoURL: user.photoURL
+      });
       setDisplayName(user.displayName || '');
       setPhotoURL(user.photoURL || '');
+      console.log('[MyPage] Form state set to:', {
+        displayName: user.displayName || '',
+        photoURL: user.photoURL || ''
+      });
 
       // 구글 사용자인지 확인
       const currentUser = auth.currentUser;
