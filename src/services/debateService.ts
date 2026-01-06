@@ -150,7 +150,7 @@ export function subscribeToDebates(
 ): () => void {
   const constraints: QueryConstraint[] = [
     where('status', '==', 'active'),
-    limit(20) // 정렬을 클라이언트에서 하므로 더 많이 가져옴
+    limit(50) // 무한 스크롤을 위해 충분한 데이터 가져오기
   ];
 
   if (category && category !== '전체') {

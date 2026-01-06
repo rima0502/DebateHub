@@ -79,6 +79,7 @@ export default function Home() {
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [recentVisits, setRecentVisits] = useState<any[]>([]);
   const [feedData, setFeedData] = useState<FeedItem[]>([]);
+  const [displayCount, setDisplayCount] = useState(5); // 표시할 토론 개수
   const { user } = useAuth();
 
   // Firestore에서 토론방 데이터 가져오기
@@ -175,6 +176,16 @@ export default function Home() {
     // 참여자 수 기준으로 내림차순 정렬
     return [...filtered].sort((a, b) => parseCount(b.participants) - parseCount(a.participants));
   }, [activeCategory, combinedDebates]);
+
+  // 실제로 표시할 토론 목록 (displayCount만큼만)
+  const displayedDebates = useMemo(() => {
+    return filteredDebates.slice(0, displayCount);
+  }, [filteredDebates, displayCount]);
+
+  // 카테고리 변경 시 displayCount 초기화
+  useEffect(() => {
+    setDisplayCount(5);
+  }, [activeCategory]);
 
   const togglePin = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
@@ -286,39 +297,54 @@ export default function Home() {
                   </div>
                 </div>
               ) : filteredDebates.length > 0 ? (
-                filteredDebates.map(debate => {
-                  const theme = CATEGORY_THEMES[debate.category] || CATEGORY_THEMES['전체'];
-                  return (
-                    <article key={debate.id} className={`group overflow-hidden rounded-xl bg-[#1c2127] border border-slate-800 shadow-sm transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 hover:border-${theme.text.split('-')[1]}/50`}>
-                      <div className="flex flex-col sm:flex-row h-full">
-                        <div className="sm:w-56 h-48 sm:h-auto bg-cover bg-center shrink-0 overflow-hidden">
-                          <img src={debate.image} alt={debate.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                        </div>
-                        <div className="flex-1 p-6 flex flex-col gap-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className={`px-2 py-0.5 rounded ${theme.bg} ${theme.text} text-[10px] font-black uppercase tracking-wider`}>{debate.category}</span>
-                              <span className="text-[11px] text-slate-500 font-medium">{debate.time}</span>
+                <>
+                  {displayedDebates.map(debate => {
+                    const theme = CATEGORY_THEMES[debate.category] || CATEGORY_THEMES['전체'];
+                    return (
+                      <article key={debate.id} className={`group overflow-hidden rounded-xl bg-[#1c2127] border border-slate-800 shadow-sm transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 hover:border-${theme.text.split('-')[1]}/50`}>
+                        <div className="flex flex-col sm:flex-row h-full">
+                          <div className="sm:w-56 h-48 sm:h-auto bg-cover bg-center shrink-0 overflow-hidden">
+                            <img src={debate.image} alt={debate.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                          </div>
+                          <div className="flex-1 p-6 flex flex-col gap-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className={`px-2 py-0.5 rounded ${theme.bg} ${theme.text} text-[10px] font-black uppercase tracking-wider`}>{debate.category}</span>
+                                <span className="text-[11px] text-slate-500 font-medium">{debate.time}</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <h3 className={`text-lg font-bold text-white transition-colors leading-tight group-hover:${theme.text}`}>{debate.title}</h3>
+                              <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed">{debate.desc}</p>
+                            </div>
+                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800">
+                              <div className="flex items-center gap-4 text-[11px] text-slate-500 font-bold uppercase tracking-wider">
+                                <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px]">group</span> {debate.participants} 참여</span>
+                                <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px]">chat_bubble</span> {debate.messages} 의견</span>
+                              </div>
+                              <Link to={`/room/${debate.id}`} className="px-5 py-2 rounded-lg bg-slate-800 text-white text-xs font-black hover:bg-primary transition-all active:scale-95">
+                                참여하기
+                              </Link>
                             </div>
                           </div>
-                          <div className="flex flex-col gap-2">
-                            <h3 className={`text-lg font-bold text-white transition-colors leading-tight group-hover:${theme.text}`}>{debate.title}</h3>
-                            <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed">{debate.desc}</p>
-                          </div>
-                          <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800">
-                            <div className="flex items-center gap-4 text-[11px] text-slate-500 font-bold uppercase tracking-wider">
-                              <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px]">group</span> {debate.participants} 참여</span>
-                              <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px]">chat_bubble</span> {debate.messages} 의견</span>
-                            </div>
-                            <Link to={`/room/${debate.id}`} className="px-5 py-2 rounded-lg bg-slate-800 text-white text-xs font-black hover:bg-primary transition-all active:scale-95">
-                              참여하기
-                            </Link>
-                          </div>
                         </div>
-                      </div>
-                    </article>
-                  );
-                })
+                      </article>
+                    );
+                  })}
+
+                  {/* 더보기 버튼 */}
+                  {displayCount < filteredDebates.length && (
+                    <div className="flex justify-center py-8">
+                      <button
+                        onClick={() => setDisplayCount(prev => prev + 5)}
+                        className="group flex items-center gap-2 px-8 py-3 rounded-xl bg-slate-800 hover:bg-primary border border-slate-700 hover:border-primary/50 text-white font-bold text-sm transition-all shadow-lg hover:shadow-primary/25 active:scale-95"
+                      >
+                        <span>더 많은 토론 보기</span>
+                        <span className="material-symbols-outlined text-xl group-hover:translate-y-0.5 transition-transform">expand_more</span>
+                      </button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 bg-[#1c2127]/30 rounded-2xl border border-dashed border-slate-800 animate-in fade-in">
                   <div className="size-16 rounded-full bg-slate-800 flex items-center justify-center mb-4">
