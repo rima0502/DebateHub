@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/hooks/useAuth';
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, serverTimestamp, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../src/firebase';
 
 export default function MyPage() {
@@ -80,10 +80,12 @@ export default function MyPage() {
 
       // Firebase Auth 프로필 업데이트
       try {
+        console.log('Auth 프로필 업데이트 시작:', { displayName: displayName.trim(), photoURL: finalPhotoURL });
         await updateProfile(auth.currentUser, {
           displayName: displayName.trim(),
           photoURL: finalPhotoURL
         });
+        console.log('Auth 프로필 업데이트 완료');
       } catch (authError: any) {
         console.error('Auth 프로필 업데이트 오류:', authError);
         throw new Error('프로필 업데이트 실패: ' + authError.message);
@@ -101,7 +103,10 @@ export default function MyPage() {
       }
 
       try {
-        await updateDoc(doc(db, 'users', user.uid), updateData);
+        console.log('Firestore 업데이트 시작:', updateData);
+        // setDoc with merge: true를 사용하여 문서가 없으면 생성, 있으면 업데이트
+        await setDoc(doc(db, 'users', user.uid), updateData, { merge: true });
+        console.log('Firestore 업데이트 완료');
       } catch (firestoreError: any) {
         console.error('Firestore 사용자 문서 업데이트 오류:', firestoreError);
         throw new Error('사용자 정보 저장 실패: ' + firestoreError.message);
