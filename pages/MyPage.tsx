@@ -107,6 +107,23 @@ export default function MyPage() {
         // setDoc with merge: true를 사용하여 문서가 없으면 생성, 있으면 업데이트
         await setDoc(doc(db, 'users', user.uid), updateData, { merge: true });
         console.log('Firestore 업데이트 완료');
+
+        // 저장 확인: 다시 읽어서 확인
+        const verifyDoc = await getDoc(doc(db, 'users', user.uid));
+        if (verifyDoc.exists()) {
+          const verifyData = verifyDoc.data();
+          console.log('저장 확인 - displayName:', verifyData.displayName);
+          console.log('저장 확인 - photoURL:', verifyData.photoURL);
+
+          if (verifyData.displayName !== displayName.trim() || verifyData.photoURL !== finalPhotoURL) {
+            console.error('저장 실패! 저장된 값이 다름');
+            console.error('예상:', { displayName: displayName.trim(), photoURL: finalPhotoURL });
+            console.error('실제:', { displayName: verifyData.displayName, photoURL: verifyData.photoURL });
+            throw new Error('Firestore에 저장되었으나 값이 일치하지 않습니다.');
+          }
+        } else {
+          throw new Error('Firestore 문서를 찾을 수 없습니다.');
+        }
       } catch (firestoreError: any) {
         console.error('Firestore 사용자 문서 업데이트 오류:', firestoreError);
         throw new Error('사용자 정보 저장 실패: ' + firestoreError.message);
