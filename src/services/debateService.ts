@@ -150,7 +150,7 @@ export function subscribeToDebates(
 ): () => void {
   const constraints: QueryConstraint[] = [
     where('status', '==', 'active'),
-    orderBy('updatedAt', 'desc'),
+    orderBy('participantCount', 'desc'),
     limit(10) // 20개에서 10개로 감소
   ];
 

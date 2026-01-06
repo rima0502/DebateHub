@@ -97,45 +97,51 @@ export default function MyPage() {
 
       await updateDoc(doc(db, 'users', user.uid), updateData);
 
-      // participants 컬렉션 업데이트
-      const participantsQuery = query(
-        collection(db, 'participants'),
-        where('userId', '==', user.uid)
-      );
-      const participantsSnapshot = await getDocs(participantsQuery);
+      // participants 및 messages 컬렉션 업데이트 (권한 문제 시 무시)
+      try {
+        // participants 컬렉션 업데이트
+        const participantsQuery = query(
+          collection(db, 'participants'),
+          where('userId', '==', user.uid)
+        );
+        const participantsSnapshot = await getDocs(participantsQuery);
 
-      // messages 컬렉션 업데이트
-      const messagesQuery = query(
-        collection(db, 'messages'),
-        where('userId', '==', user.uid)
-      );
-      const messagesSnapshot = await getDocs(messagesQuery);
+        // messages 컬렉션 업데이트
+        const messagesQuery = query(
+          collection(db, 'messages'),
+          where('userId', '==', user.uid)
+        );
+        const messagesSnapshot = await getDocs(messagesQuery);
 
-      // 배치 업데이트 (최대 500개씩)
-      const batch = writeBatch(db);
-      let batchCount = 0;
+        // 배치 업데이트 (최대 500개씩)
+        const batch = writeBatch(db);
+        let batchCount = 0;
 
-      // participants 업데이트
-      participantsSnapshot.forEach((docSnapshot) => {
-        batch.update(docSnapshot.ref, {
-          userName: displayName.trim(),
-          userAvatar: finalPhotoURL
+        // participants 업데이트
+        participantsSnapshot.forEach((docSnapshot) => {
+          batch.update(docSnapshot.ref, {
+            userName: displayName.trim(),
+            userAvatar: finalPhotoURL
+          });
+          batchCount++;
         });
-        batchCount++;
-      });
 
-      // messages 업데이트
-      messagesSnapshot.forEach((docSnapshot) => {
-        batch.update(docSnapshot.ref, {
-          userName: displayName.trim(),
-          userAvatar: finalPhotoURL
+        // messages 업데이트
+        messagesSnapshot.forEach((docSnapshot) => {
+          batch.update(docSnapshot.ref, {
+            userName: displayName.trim(),
+            userAvatar: finalPhotoURL
+          });
+          batchCount++;
         });
-        batchCount++;
-      });
 
-      // 배치 커밋 (500개 제한이 있으므로 확인)
-      if (batchCount > 0) {
-        await batch.commit();
+        // 배치 커밋 (500개 제한이 있으므로 확인)
+        if (batchCount > 0) {
+          await batch.commit();
+        }
+      } catch (updateError) {
+        console.warn('참여자 및 메시지 업데이트 실패 (무시됨):', updateError);
+        // 권한 문제 등으로 실패해도 프로필 업데이트는 성공으로 처리
       }
 
       alert('프로필이 업데이트되었습니다!');
