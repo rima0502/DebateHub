@@ -29,13 +29,39 @@ export function useAuth() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
-          emailVerified: firebaseUser.emailVerified
-        });
+        // Firestore에서 사용자 정보 가져오기 (최신 프로필 정보 반영)
+        try {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: userData.displayName || firebaseUser.displayName,
+              photoURL: userData.photoURL || firebaseUser.photoURL,
+              emailVerified: firebaseUser.emailVerified
+            });
+          } else {
+            // Firestore 문서가 없으면 Firebase Auth 정보 사용
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+              photoURL: firebaseUser.photoURL,
+              emailVerified: firebaseUser.emailVerified
+            });
+          }
+        } catch (error) {
+          console.error('사용자 정보 로드 오류:', error);
+          // 에러 발생 시 Firebase Auth 정보 사용
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            emailVerified: firebaseUser.emailVerified
+          });
+        }
       } else {
         setUser(null);
       }
