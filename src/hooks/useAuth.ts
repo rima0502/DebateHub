@@ -29,35 +29,20 @@ export function useAuth() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Firestore에서 사용자 정보 가져오기 (최신 프로필 정보 반영)
+        // Firestore에서 사용자 정보 가져오기 (단일 진실 공급원)
         try {
-          console.log('[useAuth] Firebase Auth photoURL:', firebaseUser.photoURL);
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            console.log('[useAuth] Firestore userData:', {
-              displayName: userData.displayName,
-              photoURL: userData.photoURL
-            });
-
-            const finalDisplayName = userData.displayName !== undefined ? userData.displayName : firebaseUser.displayName;
-            const finalPhotoURL = userData.photoURL !== undefined ? userData.photoURL : firebaseUser.photoURL;
-
-            console.log('[useAuth] Setting user state with:', {
-              displayName: finalDisplayName,
-              photoURL: finalPhotoURL
-            });
-
             setUser({
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               // Firestore 값이 있으면 우선 사용 (빈 문자열도 유효한 값으로 처리)
-              displayName: finalDisplayName,
-              photoURL: finalPhotoURL,
+              displayName: userData.displayName !== undefined ? userData.displayName : firebaseUser.displayName,
+              photoURL: userData.photoURL !== undefined ? userData.photoURL : firebaseUser.photoURL,
               emailVerified: firebaseUser.emailVerified
             });
           } else {
-            console.log('[useAuth] No Firestore doc, using Firebase Auth data');
             // Firestore 문서가 없으면 Firebase Auth 정보 사용
             setUser({
               uid: firebaseUser.uid,

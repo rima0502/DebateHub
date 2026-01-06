@@ -401,22 +401,22 @@ export default function DebateRoom() {
                   <div className="shrink-0 pt-1">
                     <div className={`size-10 rounded-full p-0.5 border-2 overflow-hidden ${msg.side === 'PRO' ? 'border-primary' : msg.side === 'CON' ? 'border-secondary' : 'border-purple-500'
                       }`}>
-                      {msg.userAvatar ? (
+                      {msg.photoURL ? (
                         <img
-                          src={msg.userAvatar}
-                          alt={msg.userName || '익명'}
+                          src={msg.photoURL}
+                          alt={msg.displayName || '익명'}
                           className="w-full h-full rounded-full object-cover"
                         />
                       ) : (
                         <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-sm">
-                          {msg.userName?.charAt(0) || 'U'}
+                          {msg.displayName?.charAt(0) || 'U'}
                         </div>
                       )}
                     </div>
                   </div>
                   <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-baseline gap-2 mb-1.5">
-                      <span className="font-bold text-sm text-white">{msg.userName || '익명'}</span>
+                      <span className="font-bold text-sm text-white">{msg.displayName || '익명'}</span>
                       <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${msg.side === 'PRO' ? 'bg-primary/10 text-primary border-primary/20' :
                         msg.side === 'CON' ? 'bg-secondary/10 text-secondary border-secondary/20' :
                           'bg-purple-500/10 text-purple-400 border-purple-500/20'
@@ -444,7 +444,7 @@ export default function DebateRoom() {
                           >
                             <span className="material-symbols-outlined text-[14px] mt-0.5">reply</span>
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-primary text-[10px]">{originalMsg.userName}님의 의견</span>
+                              <span className="text-primary text-[10px]">{originalMsg.displayName}님의 의견</span>
                               <span className="line-clamp-1">"{originalMsg.content.substring(0, 40)}{originalMsg.content.length > 40 ? '...' : ''}"</span>
                             </div>
                           </div>
@@ -465,7 +465,7 @@ export default function DebateRoom() {
                         <span className="text-[11px] font-bold">{msg.likes || 0}</span>
                       </button>
                       <button
-                        onClick={() => startReply(msg.id, msg.content, msg.userName || '익명')}
+                        onClick={() => startReply(msg.id, msg.content, msg.displayName || '익명')}
                         className="flex items-center gap-1.5 text-slate-500 hover:text-white transition-colors"
                       >
                         <span className="material-symbols-outlined text-[18px]">chat_bubble_outline</span>
@@ -580,20 +580,20 @@ export default function DebateRoom() {
                     <div className="flex items-center gap-3">
                       <div className={`size-8 rounded-full border transition-transform group-hover/user:scale-105 overflow-hidden ${p.side === 'PRO' ? 'border-primary' : p.side === 'CON' ? 'border-secondary' : 'border-purple-500'
                         }`}>
-                        {p.userAvatar ? (
+                        {p.photoURL ? (
                           <img
-                            src={p.userAvatar}
-                            alt={p.userName || '익명'}
+                            src={p.photoURL}
+                            alt={p.displayName || '익명'}
                             className="w-full h-full object-cover"
                           />
                         ) : (
                           <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-xs">
-                            {p.userName?.charAt(0) || 'U'}
+                            {p.displayName?.charAt(0) || 'U'}
                           </div>
                         )}
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-sm font-bold text-slate-300">{p.userName || '익명'}</span>
+                        <span className="text-sm font-bold text-slate-300">{p.displayName || '익명'}</span>
                       </div>
                     </div>
                     <div className="flex items-center justify-center">
@@ -615,7 +615,7 @@ export default function DebateRoom() {
                       {/* 방장인 경우 강제퇴장 버튼 표시 */}
                       {debate && debate.creatorId === user.uid && (
                         <button
-                          onClick={(e) => handleKick(e, p.userId, p.userName || '익명')}
+                          onClick={(e) => handleKick(e, p.userId, p.displayName || '익명')}
                           className="w-full py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-500 text-xs font-bold hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center gap-2"
                         >
                           <span className="material-symbols-outlined text-[16px]">block</span>
@@ -623,7 +623,7 @@ export default function DebateRoom() {
                         </button>
                       )}
                       <button
-                        onClick={(e) => handleReport(e, p.userName || '익명')}
+                        onClick={(e) => handleReport(e, p.displayName || '익명')}
                         className="w-full py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-bold hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
                       >
                         <span className="material-symbols-outlined text-[16px]">report</span>

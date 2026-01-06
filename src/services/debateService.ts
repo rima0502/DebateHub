@@ -296,26 +296,10 @@ export async function sendMessage(input: CreateMessageInput): Promise<{ success:
     recentTimestamps.push(now);
     messageRateLimits.set(user.uid, recentTimestamps);
 
-    // Firestore users 컬렉션에서 최신 사용자 정보 가져오기
-    let userName = user.displayName || '익명';
-    let userAvatar = user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`;
-
-    try {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        userName = userData.displayName || userName;
-        userAvatar = userData.photoURL || userAvatar;
-      }
-    } catch (error) {
-      console.warn('사용자 정보 로드 실패, 기본값 사용:', error);
-    }
-
+    // 메시지에는 userId만 저장 (프로필 정보는 표시할 때 users 컬렉션에서 가져옴)
     const messageData: any = {
       debateId: input.debateId,
       userId: user.uid,
-      userName,
-      userAvatar,
       content,
       side: input.side,
       likes: 0,
@@ -526,26 +510,10 @@ export async function joinDebate(debateId: string, side: DebateSide): Promise<{ 
       return { success: false, error: '이미 참여 중인 토론방입니다.' };
     }
 
-    // Firestore users 컬렉션에서 최신 사용자 정보 가져오기
-    let userName = user.displayName || '익명';
-    let userAvatar = user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`;
-
-    try {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        userName = userData.displayName || userName;
-        userAvatar = userData.photoURL || userAvatar;
-      }
-    } catch (error) {
-      console.warn('사용자 정보 로드 실패, 기본값 사용:', error);
-    }
-
+    // 참여자에는 userId만 저장 (프로필 정보는 표시할 때 users 컬렉션에서 가져옴)
     const participantData = {
       debateId,
       userId: user.uid,
-      userName,
-      userAvatar,
       side,
       status: '활동 중',
       warnings: 0,

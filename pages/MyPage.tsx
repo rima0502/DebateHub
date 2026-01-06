@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/hooks/useAuth';
-import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../src/firebase';
 
@@ -22,16 +22,8 @@ export default function MyPage() {
 
   useEffect(() => {
     if (user) {
-      console.log('[MyPage] useEffect triggered with user:', {
-        displayName: user.displayName,
-        photoURL: user.photoURL
-      });
       setDisplayName(user.displayName || '');
       setPhotoURL(user.photoURL || '');
-      console.log('[MyPage] Form state set to:', {
-        displayName: user.displayName || '',
-        photoURL: user.photoURL || ''
-      });
 
       // 구글 사용자인지 확인
       const currentUser = auth.currentUser;
@@ -86,20 +78,7 @@ export default function MyPage() {
       // photoURL이 비어있으면 기본 아바타 URL 사용
       const finalPhotoURL = photoURL.trim() || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`;
 
-      // Firebase Auth 프로필 업데이트
-      try {
-        console.log('Auth 프로필 업데이트 시작:', { displayName: displayName.trim(), photoURL: finalPhotoURL });
-        await updateProfile(auth.currentUser, {
-          displayName: displayName.trim(),
-          photoURL: finalPhotoURL
-        });
-        console.log('Auth 프로필 업데이트 완료');
-      } catch (authError: any) {
-        console.error('Auth 프로필 업데이트 오류:', authError);
-        throw new Error('프로필 업데이트 실패: ' + authError.message);
-      }
-
-      // Firestore 사용자 문서 업데이트
+      // Firestore 사용자 문서만 업데이트 (이것이 단일 진실 공급원)
       const updateData: any = {
         displayName: displayName.trim(),
         photoURL: finalPhotoURL
@@ -110,36 +89,7 @@ export default function MyPage() {
         updateData.lastNameChange = serverTimestamp();
       }
 
-      try {
-        console.log('Firestore 업데이트 시작:', updateData);
-        // setDoc with merge: true를 사용하여 문서가 없으면 생성, 있으면 업데이트
-        await setDoc(doc(db, 'users', user.uid), updateData, { merge: true });
-        console.log('Firestore 업데이트 완료');
-
-        // 저장 확인: 다시 읽어서 확인
-        const verifyDoc = await getDoc(doc(db, 'users', user.uid));
-        if (verifyDoc.exists()) {
-          const verifyData = verifyDoc.data();
-          console.log('저장 확인 - displayName:', verifyData.displayName);
-          console.log('저장 확인 - photoURL:', verifyData.photoURL);
-
-          if (verifyData.displayName !== displayName.trim() || verifyData.photoURL !== finalPhotoURL) {
-            console.error('저장 실패! 저장된 값이 다름');
-            console.error('예상:', { displayName: displayName.trim(), photoURL: finalPhotoURL });
-            console.error('실제:', { displayName: verifyData.displayName, photoURL: verifyData.photoURL });
-            throw new Error('Firestore에 저장되었으나 값이 일치하지 않습니다.');
-          }
-        } else {
-          throw new Error('Firestore 문서를 찾을 수 없습니다.');
-        }
-      } catch (firestoreError: any) {
-        console.error('Firestore 사용자 문서 업데이트 오류:', firestoreError);
-        throw new Error('사용자 정보 저장 실패: ' + firestoreError.message);
-      }
-
-      // 참여자 및 메시지 정보는 새로운 메시지/참여 시 자동으로 업데이트됨
-      // (users 컬렉션에서 최신 정보를 가져오도록 수정됨)
-      console.log('프로필 업데이트 완료. 이후 메시지/참여 시 자동으로 최신 정보가 반영됩니다.');
+      await setDoc(doc(db, 'users', user.uid), updateData, { merge: true });
 
       if (nameChanged) {
         setCanChangeName(false);
