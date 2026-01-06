@@ -78,6 +78,11 @@ export default function MyPage() {
       // photoURL이 비어있으면 기본 아바타 URL 사용
       const finalPhotoURL = photoURL.trim() || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`;
 
+      console.log('=== 프로필 업데이트 시작 ===');
+      console.log('displayName:', displayName.trim());
+      console.log('photoURL:', finalPhotoURL);
+      console.log('user.uid:', user.uid);
+
       // Firestore 사용자 문서만 업데이트 (이것이 단일 진실 공급원)
       const updateData: any = {
         displayName: displayName.trim(),
@@ -89,7 +94,19 @@ export default function MyPage() {
         updateData.lastNameChange = serverTimestamp();
       }
 
+      console.log('Firestore 업데이트 데이터:', updateData);
       await setDoc(doc(db, 'users', user.uid), updateData, { merge: true });
+      console.log('✅ Firestore 저장 성공');
+
+      // 저장 확인
+      const verifyDoc = await getDoc(doc(db, 'users', user.uid));
+      if (verifyDoc.exists()) {
+        const savedData = verifyDoc.data();
+        console.log('저장된 데이터 확인:', {
+          displayName: savedData.displayName,
+          photoURL: savedData.photoURL
+        });
+      }
 
       if (nameChanged) {
         setCanChangeName(false);
@@ -101,7 +118,8 @@ export default function MyPage() {
       // 페이지 새로고침으로 상태 반영 (하드 리로드)
       window.location.href = window.location.href;
     } catch (error: any) {
-      console.error('프로필 업데이트 오류:', error);
+      console.error('❌ 프로필 업데이트 오류:', error);
+      console.error('에러 상세:', error.code, error.message);
       alert('프로필 업데이트에 실패했습니다: ' + error.message);
     } finally {
       setLoading(false);
