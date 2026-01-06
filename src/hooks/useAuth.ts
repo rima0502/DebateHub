@@ -37,8 +37,9 @@ export function useAuth() {
             setUser({
               uid: firebaseUser.uid,
               email: firebaseUser.email,
-              displayName: userData.displayName || firebaseUser.displayName,
-              photoURL: userData.photoURL || firebaseUser.photoURL,
+              // Firestore 값이 있으면 우선 사용 (빈 문자열도 유효한 값으로 처리)
+              displayName: userData.displayName !== undefined ? userData.displayName : firebaseUser.displayName,
+              photoURL: userData.photoURL !== undefined ? userData.photoURL : firebaseUser.photoURL,
               emailVerified: firebaseUser.emailVerified
             });
           } else {

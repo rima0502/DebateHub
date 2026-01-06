@@ -133,15 +133,15 @@ export default function MyPage() {
       // (users 컬렉션에서 최신 정보를 가져오도록 수정됨)
       console.log('프로필 업데이트 완료. 이후 메시지/참여 시 자동으로 최신 정보가 반영됩니다.');
 
-      alert('프로필이 업데이트되었습니다!');
-
       if (nameChanged) {
         setCanChangeName(false);
         setLastNameChange(new Date());
       }
 
-      // 페이지 새로고침으로 상태 반영
-      window.location.reload();
+      alert('프로필이 업데이트되었습니다!');
+
+      // 페이지 새로고침으로 상태 반영 (하드 리로드)
+      window.location.href = window.location.href;
     } catch (error: any) {
       console.error('프로필 업데이트 오류:', error);
       alert('프로필 업데이트에 실패했습니다: ' + error.message);
