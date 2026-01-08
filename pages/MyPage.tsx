@@ -59,6 +59,17 @@ export default function MyPage() {
     }
   }, [user]);
 
+  // URL 유효성 검사 함수
+  const isValidURL = (url: string): boolean => {
+    if (!url.trim()) return false;
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleProfileUpdate = async () => {
     if (!user || !auth.currentUser) return;
 
@@ -80,8 +91,22 @@ export default function MyPage() {
     setLoading(true);
 
     try {
-      // photoURL이 비어있으면 기본 아바타 URL 사용
-      const finalPhotoURL = photoURL.trim() || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`;
+      // photoURL 유효성 검사 - 비어있거나 유효하지 않으면 기본 아바타 URL 사용
+      const trimmedPhotoURL = photoURL.trim();
+      let finalPhotoURL: string;
+      let isInvalidURL = false;
+
+      if (trimmedPhotoURL && !isValidURL(trimmedPhotoURL)) {
+        // 유효하지 않은 URL이 입력된 경우
+        isInvalidURL = true;
+        finalPhotoURL = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`;
+      } else if (!trimmedPhotoURL) {
+        // URL이 비어있는 경우
+        finalPhotoURL = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`;
+      } else {
+        // 유효한 URL인 경우
+        finalPhotoURL = trimmedPhotoURL;
+      }
 
       console.log('=== 프로필 업데이트 시작 ===');
       console.log('displayName:', displayName.trim());
@@ -122,7 +147,12 @@ export default function MyPage() {
       setDisplayName(displayName.trim());
       setPhotoURL(finalPhotoURL);
 
-      alert('프로필이 업데이트되었습니다!');
+      // 결과 알림
+      if (isInvalidURL) {
+        alert('유효하지 않은 URL입니다. 기본 프로필 이미지로 설정되었습니다.');
+      } else {
+        alert('프로필이 업데이트되었습니다!');
+      }
     } catch (error: any) {
       console.error('❌ 프로필 업데이트 오류:', error);
       console.error('에러 상세:', error.code, error.message);
@@ -219,7 +249,7 @@ export default function MyPage() {
           <div className="flex flex-col gap-6">
             {/* Profile Image */}
             <div className="flex items-center gap-6">
-              {photoURL && !photoURL.includes('dicebear') ? (
+              {photoURL ? (
                 <img
                   src={photoURL}
                   alt="프로필 이미지"
